@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e7d0e797..52ddd6e2 100644
+index e7d0e797..7845ea87 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,8 +24,13 @@ if(APPLE)
@@ -35,7 +35,7 @@ index e7d0e797..52ddd6e2 100644
  endif()
  
  ################################################################################
-@@ -166,22 +173,26 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
+@@ -166,22 +173,27 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
  list(FILTER ALL_FILES EXCLUDE REGEX "src/mods/object_ram.c")
  
  if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -48,6 +48,7 @@ index e7d0e797..52ddd6e2 100644
 -    list(APPEND ALL_FILES ${STORYBOARD_FILE} ${IMAGE_FILES} ${ICON_FILES})
 +    set(IOS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ios)
 +    set(STARSHIPPAD_ASSET_CATALOG "${IOS_DIR}/Assets.xcassets")
++    list(APPEND ALL_FILES "${IOS_DIR}/StarshipTouchControls.mm")
 +    list(APPEND ALL_FILES "${STARSHIPPAD_ASSET_CATALOG}")
  
      add_executable(${PROJECT_NAME} ${ALL_FILES})
@@ -72,7 +73,7 @@ index e7d0e797..52ddd6e2 100644
      )
  else()
      add_executable(${PROJECT_NAME} ${ALL_FILES})
-@@ -247,14 +258,12 @@ include_directories(
+@@ -247,14 +259,12 @@ include_directories(
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/menu
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils/binarytools
@@ -87,7 +88,7 @@ index e7d0e797..52ddd6e2 100644
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/libultra
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/bridge
-@@ -274,6 +283,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
+@@ -274,6 +284,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
  add_dependencies(${PROJECT_NAME} libultraship)
  target_link_libraries(${PROJECT_NAME} PRIVATE libultraship)
  
@@ -98,7 +99,7 @@ index e7d0e797..52ddd6e2 100644
  if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
      target_compile_definitions(${PROJECT_NAME} PRIVATE
          "$<$<CONFIG:Debug>:"
-@@ -355,6 +368,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+@@ -355,6 +369,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
      target_include_directories(${PROJECT_NAME} PRIVATE
          ${DEVKITPRO}/portlibs/wiiu/include/
      )
@@ -117,7 +118,7 @@ index e7d0e797..52ddd6e2 100644
  else()
      find_package(Ogg REQUIRED)
      find_package(Vorbis REQUIRED)
-@@ -605,11 +630,18 @@ add_custom_command(
+@@ -605,11 +631,18 @@ add_custom_command(
  )
  
  if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
@@ -137,7 +138,7 @@ index e7d0e797..52ddd6e2 100644
  )
  ExternalProject_Get_Property(TorchExternal install_dir)
  if (MSVC)
-@@ -632,9 +664,56 @@ add_custom_target(
+@@ -632,9 +665,56 @@ add_custom_target(
      COMMAND ${TORCH_EXECUTABLE} pack port starship.o2r o2r
      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/starship.o2r" "${CMAKE_BINARY_DIR}/starship.o2r"
  )
@@ -195,7 +196,7 @@ index e7d0e797..52ddd6e2 100644
  
  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
    install(FILES "${CMAKE_BINARY_DIR}/starship.o2r" DESTINATION . COMPONENT ${PROJECT_NAME})
-@@ -685,5 +764,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+@@ -685,5 +765,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
      set(CPACK_GENERATOR "Bundle")
  endif()
  
@@ -344,11 +345,692 @@ index 00000000..1b3913c4
 +    </array>
 +</dict>
 +</plist>
+diff --git a/ios/StarshipTouchControls.h b/ios/StarshipTouchControls.h
+new file mode 100644
+index 00000000..18a0200b
+--- /dev/null
++++ b/ios/StarshipTouchControls.h
+@@ -0,0 +1,13 @@
++#pragma once
++
++#ifdef __cplusplus
++extern "C" {
++#endif
++
++int StarshipPad_TouchControlsAvailable(void);
++void StarshipPad_SetTouchControlsEnabled(int enabled);
++void StarshipPad_SetTouchControlsMenuVisible(int visible);
++
++#ifdef __cplusplus
++}
++#endif
+diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
+new file mode 100644
+index 00000000..2dbba76e
+--- /dev/null
++++ b/ios/StarshipTouchControls.mm
+@@ -0,0 +1,646 @@
++#import <UIKit/UIKit.h>
++
++#include <atomic>
++#include <SDL.h>
++
++#include "StarshipTouchControls.h"
++
++static void StarshipPad_PushKey(SDL_Scancode scancode, BOOL pressed) {
++    SDL_Event event = {};
++    event.type = pressed ? SDL_KEYDOWN : SDL_KEYUP;
++    event.key.timestamp = SDL_GetTicks();
++    event.key.state = pressed ? SDL_PRESSED : SDL_RELEASED;
++    event.key.repeat = 0;
++    event.key.keysym.scancode = scancode;
++    event.key.keysym.sym = SDL_GetKeyFromScancode(scancode);
++    SDL_Window* window = SDL_GetKeyboardFocus();
++    if (window != nullptr) {
++        event.key.windowID = SDL_GetWindowID(window);
++    }
++    SDL_PushEvent(&event);
++}
++
++@interface StarshipPadTouchButton : UIButton
++
++@property(nonatomic) SDL_Scancode scancode;
++@property(nonatomic) BOOL inputPressed;
++@property(nonatomic) uint32_t inputDownTicks;
++@property(nonatomic) NSUInteger pressGeneration;
++@property(nonatomic) BOOL usesPillShape;
++@property(nonatomic, strong) UIColor* idleColor;
++@property(nonatomic, strong) UIColor* pressedColor;
++
++- (instancetype)initWithLabel:(NSString*)label
++                     scancode:(SDL_Scancode)scancode
++                         pill:(BOOL)pill;
++- (void)applyIdleColor:(UIColor*)idleColor
++          pressedColor:(UIColor*)pressedColor;
++- (void)cancelInput;
++
++@end
++
++@implementation StarshipPadTouchButton
++
++- (instancetype)initWithLabel:(NSString*)label
++                     scancode:(SDL_Scancode)scancode
++                         pill:(BOOL)pill {
++    self = [super initWithFrame:CGRectZero];
++    if (self != nil) {
++        self.scancode = scancode;
++        self.usesPillShape = pill;
++        self.multipleTouchEnabled = YES;
++        self.idleColor = [UIColor colorWithWhite:0.04 alpha:0.38];
++        self.pressedColor = [UIColor colorWithWhite:0.78 alpha:0.52];
++        self.backgroundColor = self.idleColor;
++        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.58].CGColor;
++        self.layer.borderWidth = 2.0;
++        [self setTitle:label forState:UIControlStateNormal];
++        [self setTitleColor:[UIColor colorWithWhite:1.0 alpha:0.94]
++                   forState:UIControlStateNormal];
++        self.titleLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
++        self.accessibilityLabel = label;
++        self.accessibilityCustomActions = @[
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold"
++                                                       target:self
++                                                     selector:@selector(accessibilityHold:)],
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Double Tap"
++                                                       target:self
++                                                     selector:@selector(accessibilityDoubleTap:)]
++        ];
++
++        [self addTarget:self
++                      action:@selector(inputDown)
++            forControlEvents:UIControlEventTouchDown | UIControlEventTouchDragEnter];
++        [self addTarget:self
++                      action:@selector(inputUp)
++            forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside |
++                             UIControlEventTouchCancel | UIControlEventTouchDragExit];
++    }
++    return self;
++}
++
++- (void)applyIdleColor:(UIColor*)idleColor
++          pressedColor:(UIColor*)pressedColor {
++    self.idleColor = idleColor;
++    self.pressedColor = pressedColor;
++    self.backgroundColor = self.inputPressed ? pressedColor : idleColor;
++}
++
++- (void)layoutSubviews {
++    [super layoutSubviews];
++    self.layer.cornerRadius =
++        self.usesPillShape ? CGRectGetHeight(self.bounds) * 0.48
++                           : MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.5;
++}
++
++- (void)inputDown {
++    if (self.inputPressed) {
++        return;
++    }
++    self.pressGeneration += 1;
++    self.inputDownTicks = SDL_GetTicks();
++    self.inputPressed = YES;
++    self.backgroundColor = self.pressedColor;
++    StarshipPad_PushKey(self.scancode, YES);
++}
++
++- (void)finishInputUp {
++    if (!self.inputPressed) {
++        return;
++    }
++    self.inputPressed = NO;
++    self.backgroundColor = self.idleColor;
++    StarshipPad_PushKey(self.scancode, NO);
++}
++
++- (void)inputUp {
++    if (!self.inputPressed) {
++        return;
++    }
++
++    static const uint32_t minimumPressMilliseconds = 80;
++    const uint32_t elapsed = SDL_GetTicks() - self.inputDownTicks;
++    if (elapsed >= minimumPressMilliseconds) {
++        [self finishInputUp];
++        return;
++    }
++
++    const NSUInteger generation = self.pressGeneration;
++    const uint32_t remaining = minimumPressMilliseconds - elapsed;
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(remaining * NSEC_PER_MSEC)),
++                   dispatch_get_main_queue(), ^{
++                       if (self.pressGeneration == generation) {
++                           [self finishInputUp];
++                       }
++                   });
++}
++
++- (BOOL)accessibilityActivate {
++    if (!self.enabled) {
++        return NO;
++    }
++
++    [self inputDown];
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.10 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       [self inputUp];
++                   });
++    return YES;
++}
++
++- (BOOL)accessibilityHold:(UIAccessibilityCustomAction*)action {
++    if (!self.enabled) {
++        return NO;
++    }
++
++    [self inputDown];
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       [self inputUp];
++                   });
++    return YES;
++}
++
++- (BOOL)accessibilityDoubleTap:(UIAccessibilityCustomAction*)action {
++    if (!self.enabled) {
++        return NO;
++    }
++
++    [self inputDown];
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.10 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       [self inputUp];
++                   });
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.20 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       [self inputDown];
++                   });
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.30 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       [self inputUp];
++                   });
++    return YES;
++}
++
++- (void)cancelInput {
++    self.pressGeneration += 1;
++    [self finishInputUp];
++}
++
++@end
++
++@interface StarshipPadTouchStick : UIView
++
++@property(nonatomic, strong) UIView* knob;
++@property(nonatomic) BOOL upPressed;
++@property(nonatomic) BOOL downPressed;
++@property(nonatomic) BOOL leftPressed;
++@property(nonatomic) BOOL rightPressed;
++@property(nonatomic) NSUInteger directionGeneration;
++
++- (void)cancelInput;
++
++@end
++
++@implementation StarshipPadTouchStick
++
++- (instancetype)initWithFrame:(CGRect)frame {
++    self = [super initWithFrame:frame];
++    if (self != nil) {
++        self.multipleTouchEnabled = NO;
++        self.backgroundColor = [UIColor colorWithWhite:0.04 alpha:0.30];
++        self.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.42].CGColor;
++        self.layer.borderWidth = 2.0;
++        self.isAccessibilityElement = YES;
++        self.accessibilityLabel = @"Control Stick";
++        self.accessibilityCustomActions = @[
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold Up"
++                                                       target:self
++                                                     selector:@selector(accessibilityHoldUp:)],
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold Down"
++                                                       target:self
++                                                     selector:@selector(accessibilityHoldDown:)],
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold Left"
++                                                       target:self
++                                                     selector:@selector(accessibilityHoldLeft:)],
++            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold Right"
++                                                       target:self
++                                                     selector:@selector(accessibilityHoldRight:)]
++        ];
++
++        self.knob = [[UIView alloc] initWithFrame:CGRectZero];
++        self.knob.userInteractionEnabled = NO;
++        self.knob.backgroundColor =
++            [UIColor colorWithRed:0.24 green:0.62 blue:0.92 alpha:0.72];
++        self.knob.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.62].CGColor;
++        self.knob.layer.borderWidth = 2.0;
++        [self addSubview:self.knob];
++    }
++    return self;
++}
++
++- (void)layoutSubviews {
++    [super layoutSubviews];
++    self.layer.cornerRadius = MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.5;
++    CGFloat knobSize = MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.43;
++    self.knob.bounds = CGRectMake(0.0, 0.0, knobSize, knobSize);
++    if (!self.upPressed && !self.downPressed && !self.leftPressed && !self.rightPressed) {
++        self.knob.center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
++    }
++    self.knob.layer.cornerRadius = knobSize * 0.5;
++}
++
++- (void)setScancode:(SDL_Scancode)scancode pressed:(BOOL)pressed state:(BOOL*)state {
++    if (*state == pressed) {
++        return;
++    }
++    *state = pressed;
++    StarshipPad_PushKey(scancode, pressed);
++}
++
++- (void)updateForPoint:(CGPoint)point {
++    CGPoint center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
++    CGFloat radius = MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.34;
++    CGFloat dx = point.x - center.x;
++    CGFloat dy = point.y - center.y;
++    CGFloat distance = hypot(dx, dy);
++    if (distance > radius && distance > 0.0) {
++        dx = dx / distance * radius;
++        dy = dy / distance * radius;
++    }
++    self.knob.center = CGPointMake(center.x + dx, center.y + dy);
++
++    CGFloat threshold = radius * 0.30;
++    [self setScancode:SDL_SCANCODE_W pressed:dy < -threshold state:&_upPressed];
++    [self setScancode:SDL_SCANCODE_S pressed:dy > threshold state:&_downPressed];
++    [self setScancode:SDL_SCANCODE_A pressed:dx < -threshold state:&_leftPressed];
++    [self setScancode:SDL_SCANCODE_D pressed:dx > threshold state:&_rightPressed];
++}
++
++- (BOOL)holdDirectionX:(CGFloat)x y:(CGFloat)y {
++    self.directionGeneration += 1;
++    const NSUInteger generation = self.directionGeneration;
++    CGPoint center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
++    CGFloat radius = MIN(CGRectGetWidth(self.bounds), CGRectGetHeight(self.bounds)) * 0.34;
++    [self updateForPoint:CGPointMake(center.x + x * radius, center.y + y * radius)];
++    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.0 * NSEC_PER_SEC)),
++                   dispatch_get_main_queue(), ^{
++                       if (self.directionGeneration == generation) {
++                           [self cancelInput];
++                       }
++                   });
++    return YES;
++}
++
++- (BOOL)accessibilityHoldUp:(UIAccessibilityCustomAction*)action {
++    return [self holdDirectionX:0.0 y:-1.0];
++}
++
++- (BOOL)accessibilityHoldDown:(UIAccessibilityCustomAction*)action {
++    return [self holdDirectionX:0.0 y:1.0];
++}
++
++- (BOOL)accessibilityHoldLeft:(UIAccessibilityCustomAction*)action {
++    return [self holdDirectionX:-1.0 y:0.0];
++}
++
++- (BOOL)accessibilityHoldRight:(UIAccessibilityCustomAction*)action {
++    return [self holdDirectionX:1.0 y:0.0];
++}
++
++- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    UITouch* touch = touches.anyObject;
++    if (touch != nil) {
++        [self updateForPoint:[touch locationInView:self]];
++    }
++}
++
++- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    UITouch* touch = touches.anyObject;
++    if (touch != nil) {
++        [self updateForPoint:[touch locationInView:self]];
++    }
++}
++
++- (void)touchesEnded:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    [self cancelInput];
++}
++
++- (void)touchesCancelled:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    [self cancelInput];
++}
++
++- (void)cancelInput {
++    self.directionGeneration += 1;
++    [self setScancode:SDL_SCANCODE_W pressed:NO state:&_upPressed];
++    [self setScancode:SDL_SCANCODE_S pressed:NO state:&_downPressed];
++    [self setScancode:SDL_SCANCODE_A pressed:NO state:&_leftPressed];
++    [self setScancode:SDL_SCANCODE_D pressed:NO state:&_rightPressed];
++    self.knob.center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
++}
++
++@end
++
++@interface StarshipPadTouchOverlay : UIView
++
++@property(nonatomic, strong) StarshipPadTouchStick* controlStick;
++@property(nonatomic, strong) NSArray<StarshipPadTouchButton*>* buttons;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonA;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonB;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonZ;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonR;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonStart;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonBoost;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonBrake;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonView;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonTalk;
++@property(nonatomic, strong) StarshipPadTouchButton* dUp;
++@property(nonatomic, strong) StarshipPadTouchButton* dDown;
++@property(nonatomic, strong) StarshipPadTouchButton* dLeft;
++@property(nonatomic, strong) StarshipPadTouchButton* dRight;
++
++- (void)cancelAllInputs;
++
++@end
++
++@implementation StarshipPadTouchOverlay
++
++- (instancetype)initWithFrame:(CGRect)frame {
++    self = [super initWithFrame:frame];
++    if (self != nil) {
++        self.backgroundColor = UIColor.clearColor;
++        self.multipleTouchEnabled = YES;
++
++        self.controlStick = [[StarshipPadTouchStick alloc] initWithFrame:CGRectZero];
++        self.buttonA =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"A" scancode:SDL_SCANCODE_X pill:NO];
++        self.buttonB =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"B" scancode:SDL_SCANCODE_C pill:NO];
++        self.buttonZ =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"Z" scancode:SDL_SCANCODE_Z pill:YES];
++        self.buttonR =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"R" scancode:SDL_SCANCODE_R pill:YES];
++        self.buttonStart = [[StarshipPadTouchButton alloc] initWithLabel:@"START"
++                                                               scancode:SDL_SCANCODE_SPACE
++                                                                   pill:YES];
++        self.buttonBoost = [[StarshipPadTouchButton alloc] initWithLabel:@"BOOST"
++                                                               scancode:SDL_SCANCODE_LEFT
++                                                                   pill:YES];
++        self.buttonBrake = [[StarshipPadTouchButton alloc] initWithLabel:@"BRAKE"
++                                                               scancode:SDL_SCANCODE_DOWN
++                                                                   pill:YES];
++        self.buttonView = [[StarshipPadTouchButton alloc] initWithLabel:@"VIEW"
++                                                              scancode:SDL_SCANCODE_UP
++                                                                  pill:YES];
++        self.buttonTalk = [[StarshipPadTouchButton alloc] initWithLabel:@"TALK"
++                                                              scancode:SDL_SCANCODE_RIGHT
++                                                                  pill:YES];
++        self.dUp =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"▲" scancode:SDL_SCANCODE_T pill:NO];
++        self.dDown =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"▼" scancode:SDL_SCANCODE_G pill:NO];
++        self.dLeft =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"◀" scancode:SDL_SCANCODE_F pill:NO];
++        self.dRight =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"▶" scancode:SDL_SCANCODE_H pill:NO];
++
++        [self.buttonA
++            applyIdleColor:[UIColor colorWithRed:0.08 green:0.35 blue:0.88 alpha:0.58]
++              pressedColor:[UIColor colorWithRed:0.14 green:0.48 blue:1.00 alpha:0.90]];
++        [self.buttonB
++            applyIdleColor:[UIColor colorWithRed:0.05 green:0.55 blue:0.24 alpha:0.58]
++              pressedColor:[UIColor colorWithRed:0.10 green:0.76 blue:0.34 alpha:0.90]];
++        UIColor* cIdle = [UIColor colorWithRed:0.95 green:0.67 blue:0.12 alpha:0.52];
++        UIColor* cPressed = [UIColor colorWithRed:1.00 green:0.78 blue:0.20 alpha:0.90];
++        for (StarshipPadTouchButton* button in
++             @[ self.buttonBoost, self.buttonBrake, self.buttonView, self.buttonTalk ]) {
++            [button applyIdleColor:cIdle pressedColor:cPressed];
++        }
++        [self.buttonStart
++            applyIdleColor:[UIColor colorWithRed:0.68 green:0.12 blue:0.16 alpha:0.54]
++              pressedColor:[UIColor colorWithRed:0.94 green:0.22 blue:0.26 alpha:0.90]];
++
++        self.buttonA.accessibilityLabel = @"Fire";
++        self.buttonB.accessibilityLabel = @"Bomb";
++        self.buttonZ.accessibilityLabel = @"Bank left";
++        self.buttonR.accessibilityLabel = @"Bank right";
++        self.buttonStart.accessibilityLabel = @"Pause";
++        self.buttonBoost.accessibilityLabel = @"Boost";
++        self.buttonBrake.accessibilityLabel = @"Brake";
++        self.buttonView.accessibilityLabel = @"View";
++        self.buttonTalk.accessibilityLabel = @"Talk";
++        self.dUp.accessibilityLabel = @"D-pad Up";
++        self.dDown.accessibilityLabel = @"D-pad Down";
++        self.dLeft.accessibilityLabel = @"D-pad Left";
++        self.dRight.accessibilityLabel = @"D-pad Right";
++
++        self.buttons = @[
++            self.buttonA, self.buttonB, self.buttonZ, self.buttonR,
++            self.buttonStart, self.buttonBoost, self.buttonBrake,
++            self.buttonView, self.buttonTalk, self.dUp, self.dDown,
++            self.dLeft, self.dRight,
++        ];
++        [self addSubview:self.controlStick];
++        for (StarshipPadTouchButton* button in self.buttons) {
++            [self addSubview:button];
++        }
++    }
++    return self;
++}
++
++- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event {
++    UIView* hit = [super hitTest:point withEvent:event];
++    return hit == self ? nil : hit;
++}
++
++- (void)layoutSubviews {
++    [super layoutSubviews];
++    UIEdgeInsets safe = self.safeAreaInsets;
++    CGFloat width = CGRectGetWidth(self.bounds);
++    CGFloat height = CGRectGetHeight(self.bounds);
++    CGFloat scale = MAX(0.72, MIN(1.08, height / 650.0));
++    CGFloat edge = 16.0 * scale;
++    CGFloat left = safe.left + edge;
++    CGFloat right = width - safe.right - edge;
++    CGFloat top = safe.top + edge;
++    CGFloat bottom = height - safe.bottom - edge;
++
++    CGFloat stickSize = 150.0 * scale;
++    self.controlStick.frame =
++        CGRectMake(left, bottom - stickSize, stickSize, stickSize);
++
++    CGFloat shoulderWidth = 98.0 * scale;
++    CGFloat shoulderHeight = 48.0 * scale;
++    self.buttonZ.frame = CGRectMake(left, top, shoulderWidth, shoulderHeight);
++    self.buttonR.frame =
++        CGRectMake(right - shoulderWidth, top, shoulderWidth, shoulderHeight);
++
++    CGFloat startWidth = 82.0 * scale;
++    CGFloat startHeight = 38.0 * scale;
++    self.buttonStart.frame =
++        CGRectMake(width * 0.5 - startWidth * 0.5, top, startWidth, startHeight);
++
++    CGFloat dSize = 36.0 * scale;
++    CGFloat dRadius = 31.0 * scale;
++    CGPoint dCenter = CGPointMake(left + 64.0 * scale, height * 0.43);
++    self.dUp.frame =
++        CGRectMake(dCenter.x - dSize * 0.5,
++                   dCenter.y - dRadius - dSize * 0.5, dSize, dSize);
++    self.dDown.frame =
++        CGRectMake(dCenter.x - dSize * 0.5,
++                   dCenter.y + dRadius - dSize * 0.5, dSize, dSize);
++    self.dLeft.frame =
++        CGRectMake(dCenter.x - dRadius - dSize * 0.5,
++                   dCenter.y - dSize * 0.5, dSize, dSize);
++    self.dRight.frame =
++        CGRectMake(dCenter.x + dRadius - dSize * 0.5,
++                   dCenter.y - dSize * 0.5, dSize, dSize);
++
++    CGFloat railWidth = 112.0 * scale;
++    CGFloat railHeight = 43.0 * scale;
++    CGFloat railX = right - railWidth;
++    CGFloat boostY = MAX(top + 70.0 * scale, height * 0.32);
++    self.buttonBoost.frame = CGRectMake(railX, boostY, railWidth, railHeight);
++    self.buttonBrake.frame =
++        CGRectMake(railX, CGRectGetMaxY(self.buttonBoost.frame) + 10.0 * scale,
++                   railWidth, railHeight);
++
++    CGFloat utilityWidth = 52.0 * scale;
++    CGFloat utilityHeight = 38.0 * scale;
++    CGFloat utilityY = CGRectGetMaxY(self.buttonBrake.frame) + 10.0 * scale;
++    self.buttonView.frame =
++        CGRectMake(railX, utilityY, utilityWidth, utilityHeight);
++    self.buttonTalk.frame =
++        CGRectMake(right - utilityWidth, utilityY, utilityWidth, utilityHeight);
++
++    CGFloat faceA = 76.0 * scale;
++    CGFloat faceB = 60.0 * scale;
++    self.buttonA.frame =
++        CGRectMake(right - faceA, bottom - faceA, faceA, faceA);
++    self.buttonB.frame =
++        CGRectMake(CGRectGetMinX(self.buttonA.frame) - faceB - 12.0 * scale,
++                   bottom - faceB + 4.0 * scale, faceB, faceB);
++
++    CGFloat labelSize = 16.0 * scale;
++    for (StarshipPadTouchButton* button in self.buttons) {
++        button.titleLabel.font = [UIFont systemFontOfSize:labelSize weight:UIFontWeightSemibold];
++    }
++    self.buttonA.titleLabel.font =
++        [UIFont systemFontOfSize:22.0 * scale weight:UIFontWeightBold];
++    self.buttonB.titleLabel.font =
++        [UIFont systemFontOfSize:19.0 * scale weight:UIFontWeightBold];
++    for (StarshipPadTouchButton* button in
++         @[ self.dUp, self.dDown, self.dLeft, self.dRight ]) {
++        button.titleLabel.font =
++            [UIFont systemFontOfSize:13.0 * scale weight:UIFontWeightBold];
++    }
++}
++
++- (void)cancelAllInputs {
++    [self.controlStick cancelInput];
++    for (StarshipPadTouchButton* button in self.buttons) {
++        [button cancelInput];
++    }
++}
++
++@end
++
++static StarshipPadTouchOverlay* sTouchOverlay;
++static StarshipPadTouchButton* sMenuButton;
++static BOOL sTouchControlsDesired;
++static std::atomic_bool sTouchControlsMenuVisible(false);
++
++static UIWindow* StarshipPad_ActiveWindow(void) {
++    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
++        if (![scene isKindOfClass:UIWindowScene.class]) {
++            continue;
++        }
++        for (UIWindow* window in ((UIWindowScene*)scene).windows) {
++            if (window.isKeyWindow) {
++                return window;
++            }
++        }
++    }
++    return UIApplication.sharedApplication.windows.firstObject;
++}
++
++static void StarshipPad_InstallMenuButton(UIWindow* window) {
++    if (sMenuButton == nil) {
++        sMenuButton =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"•••"
++                                                scancode:SDL_SCANCODE_F1
++                                                    pill:NO];
++        sMenuButton.accessibilityLabel = @"Menu";
++        sMenuButton.titleLabel.font =
++            [UIFont systemFontOfSize:15.0 weight:UIFontWeightSemibold];
++        [sMenuButton
++            applyIdleColor:[UIColor colorWithWhite:0.04 alpha:0.42]
++              pressedColor:[UIColor colorWithWhite:0.72 alpha:0.62]];
++        sMenuButton.autoresizingMask =
++            UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
++    }
++
++    const CGFloat size = 38.0;
++    const UIEdgeInsets safe = window.safeAreaInsets;
++    sMenuButton.frame =
++        CGRectMake(CGRectGetWidth(window.bounds) - safe.right - size - 8.0,
++                   safe.top + 76.0, size, size);
++    if (sMenuButton.superview != window) {
++        [sMenuButton removeFromSuperview];
++        [window addSubview:sMenuButton];
++    }
++    [window bringSubviewToFront:sMenuButton];
++}
++
++static void StarshipPad_ApplyTouchControlsState(void) {
++    UIWindow* window = StarshipPad_ActiveWindow();
++    if (window == nil) {
++        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)),
++                       dispatch_get_main_queue(), ^{
++                           StarshipPad_ApplyTouchControlsState();
++                       });
++        return;
++    }
++
++    StarshipPad_InstallMenuButton(window);
++    if (!sTouchControlsDesired || sTouchControlsMenuVisible.load()) {
++        [sTouchOverlay cancelAllInputs];
++        [sTouchOverlay removeFromSuperview];
++        sTouchOverlay = nil;
++        return;
++    }
++
++    if (sTouchOverlay == nil) {
++        sTouchOverlay = [[StarshipPadTouchOverlay alloc] initWithFrame:window.bounds];
++        sTouchOverlay.autoresizingMask =
++            UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
++    }
++    if (sTouchOverlay.superview != window) {
++        [sTouchOverlay removeFromSuperview];
++        sTouchOverlay.frame = window.bounds;
++        [window addSubview:sTouchOverlay];
++    }
++    [window bringSubviewToFront:sTouchOverlay];
++    [window bringSubviewToFront:sMenuButton];
++}
++
++int StarshipPad_TouchControlsAvailable(void) {
++    return 1;
++}
++
++void StarshipPad_SetTouchControlsEnabled(int enabled) {
++    dispatch_async(dispatch_get_main_queue(), ^{
++        sTouchControlsDesired = enabled != 0;
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
++
++void StarshipPad_SetTouchControlsMenuVisible(int visible) {
++    const bool menuVisible = visible != 0;
++    if (sTouchControlsMenuVisible.exchange(menuVisible) == menuVisible) {
++        return;
++    }
++    dispatch_async(dispatch_get_main_queue(), ^{
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..bf141c8c 100644
+index bc0ccb1f..96d34630 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
-@@ -42,7 +42,11 @@
+@@ -1,6 +1,9 @@
+ #include "Engine.h"
+ #include "ui/ImguiUI.h"
+ #include "StringHelper.h"
++#ifdef __IOS__
++#include "ios/StarshipTouchControls.h"
++#endif
+ 
+ #include "extractor/GameExtractor.h"
+ #include "libultraship/src/Context.h"
+@@ -42,7 +45,11 @@
  #include "port/mods/PortEnhancements.h"
  
  #include <Fast3D/interpreter.h>
@@ -360,7 +1042,7 @@ index bc0ccb1f..bf141c8c 100644
  
  #ifdef __SWITCH__
  #include <port/switch/SwitchImpl.h>
-@@ -81,7 +85,9 @@ GameEngine::GameEngine() {
+@@ -81,7 +88,9 @@ GameEngine::GameEngine() {
  
      if (std::filesystem::exists(main_path)) {
          archiveFiles.push_back(main_path);
@@ -371,7 +1053,7 @@ index bc0ccb1f..bf141c8c 100644
          if (ShowYesNoBox("Starship - Asset Extraction", "Please provide a Starfox 64 ROM.\n\nSupported Versions:\nUS 1.0\nUS 1.1\n\nAssets will be extracted into an O2R file.") == IDYES) {
              if(!GenAssetFile()){
                  ShowMessage("Error", "An error occured, no O2R file was generated.\n\nExiting...");
-@@ -99,6 +105,7 @@ GameEngine::GameEngine() {
+@@ -99,6 +108,7 @@ GameEngine::GameEngine() {
              exit(1);
          }
      }
@@ -379,7 +1061,7 @@ index bc0ccb1f..bf141c8c 100644
  
      if (std::filesystem::exists(assets_path)) {
          archiveFiles.push_back(assets_path);
-@@ -170,6 +177,17 @@ GameEngine::GameEngine() {
+@@ -170,6 +180,17 @@ GameEngine::GameEngine() {
      auto audioChannelsSetting = Ship::Context::GetInstance()->GetConfig()->GetCurrentAudioChannelsSetting();
      this->context->Init(archiveFiles, {}, 3, { 32000, 1024, 1680, audioChannelsSetting }, window, controlDeck);
  
@@ -397,7 +1079,7 @@ index bc0ccb1f..bf141c8c 100644
  #ifndef __SWITCH__
      Ship::Context::GetInstance()->GetLogger()->set_level(
          (spdlog::level::level_enum) CVarGetInteger("gDeveloperTools.LogLevel", 1));
-@@ -265,6 +283,163 @@ GameEngine::GameEngine() {
+@@ -265,6 +286,163 @@ GameEngine::GameEngine() {
      context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
  }
  
@@ -561,6 +1243,17 @@ index bc0ccb1f..bf141c8c 100644
  bool GameEngine::GenAssetFile(bool exitOnFail) {
      auto extractor = new GameExtractor();
  
+@@ -297,6 +475,10 @@ void GameEngine::Create() {
+     instance->AudioInit();
+     DisplayListPatch::Run();
+     GameUI::SetupGuiElements();
++#ifdef __IOS__
++    CVarRegisterInteger("gSettings.TouchControls", 1);
++    StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
++#endif
+ #if defined(__SWITCH__) || defined(__WIIU__)
+     CVarRegisterInteger("gControlNav", 1); // always enable controller nav on switch/wii u
+     osSetTime(0);
 diff --git a/src/port/Engine.h b/src/port/Engine.h
 index b937e9db..47d4e296 100644
 --- a/src/port/Engine.h
@@ -903,3 +1596,41 @@ index 00000000..79e9010b
 +}
 +
 +} // namespace StarshipPad
+diff --git a/src/port/ui/ImguiUI.cpp b/src/port/ui/ImguiUI.cpp
+index 5874ac2a..066cb16c 100644
+--- a/src/port/ui/ImguiUI.cpp
++++ b/src/port/ui/ImguiUI.cpp
+@@ -14,6 +14,10 @@
+ #include "port/notification/notification.h"
+ #include "utils/StringHelper.h"
+ 
++#ifdef __IOS__
++#include "ios/StarshipTouchControls.h"
++#endif
++
+ #ifdef __SWITCH__
+ #include <port/switch/SwitchImpl.h>
+ #include <port/switch/SwitchPerformanceProfiles.h>
+@@ -347,6 +351,15 @@ void DrawSettingsMenu(){
+         UIWidgets::Spacer(0);
+ 
+         if (UIWidgets::BeginMenu("Controller")) {
++#ifdef __IOS__
++            if (UIWidgets::CVarCheckbox("Touch Controls", "gSettings.TouchControls", {
++                    .tooltip = "Shows the on-screen Star Fox controls. Disable them when using a physical controller.",
++                    .defaultValue = true,
++                })) {
++                StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
++            }
++            UIWidgets::Spacer(0);
++#endif
+             UIWidgets::WindowButton("Controller Mapping", "gInputEditorWindow", GameUI::mInputEditorWindow);
+ 
+             UIWidgets::Spacer(0);
+@@ -939,4 +952,4 @@ void GameMenuBar::DrawElement() {
+ 
+         ImGui::EndMenuBar();
+     }
+-}
+\ No newline at end of file
++}

@@ -184,6 +184,19 @@ index fb82faf9..f2f40b7f 100644
 +    std::atomic<bool> mPaused = false;
  };
  } // namespace Ship
+diff --git a/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp b/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp
+index 986af551..8be97bbd 100644
+--- a/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp
++++ b/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp
+@@ -55,7 +55,7 @@ void ControllerDefaultMappings::SetDefaultKeyboardKeyToButtonMappings(
+     mDefaultKeyboardKeyToButtonMappings[BTN_L] = { KbScancode::LUS_KB_E };
+     mDefaultKeyboardKeyToButtonMappings[BTN_R] = { KbScancode::LUS_KB_R };
+     mDefaultKeyboardKeyToButtonMappings[BTN_Z] = { KbScancode::LUS_KB_Z };
+-    mDefaultKeyboardKeyToButtonMappings[BTN_START] = { KbScancode::LUS_KB_SPACE };
++    mDefaultKeyboardKeyToButtonMappings[BTN_START] = { KbScancode::LUS_KB_SPACE, KbScancode::LUS_KB_ENTER };
+     mDefaultKeyboardKeyToButtonMappings[BTN_CUP] = { KbScancode::LUS_KB_ARROWKEY_UP };
+     mDefaultKeyboardKeyToButtonMappings[BTN_CDOWN] = { KbScancode::LUS_KB_ARROWKEY_DOWN };
+     mDefaultKeyboardKeyToButtonMappings[BTN_CLEFT] = { KbScancode::LUS_KB_ARROWKEY_LEFT };
 diff --git a/src/graphic/Fast3D/Fast3dWindow.cpp b/src/graphic/Fast3D/Fast3dWindow.cpp
 index ca3abf0a..10687cce 100644
 --- a/src/graphic/Fast3D/Fast3dWindow.cpp
@@ -484,10 +497,21 @@ index e4e47f5a..40c83e35 100644
              const float textWidth = GetStringWidth(overlay.Value.c_str());
              const float textOffset = 40.0f;
 diff --git a/src/window/gui/Gui.cpp b/src/window/gui/Gui.cpp
-index 953d4514..6de3dcac 100644
+index 953d4514..a65210b4 100644
 --- a/src/window/gui/Gui.cpp
 +++ b/src/window/gui/Gui.cpp
-@@ -129,9 +129,19 @@ void Gui::Init(GuiWindowInitData windowImpl) {
+@@ -7,6 +7,10 @@
+ #include <string>
+ #include <vector>
+ 
++#ifdef __IOS__
++extern "C" void StarshipPad_SetTouchControlsMenuVisible(int visible);
++#endif
++
+ #include "config/Config.h"
+ #include "Context.h"
+ #include "public/bridge/consolevariablebridge.h"
+@@ -129,9 +133,19 @@ void Gui::Init(GuiWindowInitData windowImpl) {
                                                            &iconsConfig, sIconsRanges);
  
  #if defined(__ANDROID__)
@@ -508,3 +532,14 @@ index 953d4514..6de3dcac 100644
  #endif
  
      auto imguiIniPath = Context::GetPathRelativeToAppDirectory("imgui.ini");
+@@ -568,6 +582,10 @@ void Gui::DrawMenu() {
+         GetMenu()->Draw();
+     }
+ 
++#ifdef __IOS__
++    StarshipPad_SetTouchControlsMenuVisible(GetMenuOrMenubarVisible());
++#endif
++
+     for (auto& windowIter : mGuiWindows) {
+         windowIter.second->Update();
+         windowIter.second->Draw();

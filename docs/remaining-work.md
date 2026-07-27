@@ -56,26 +56,27 @@ evidence belong to StarshipPad.
 | 3 | Metal title screen in iPad Simulator | Complete | Capture, runtime log, SDL audio-init line |
 | 4 | Files import and on-device Torch extraction | Complete on Simulator; hardware gate open | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
 | 5 | Lifecycle, audio pause, and persistence | Complete on Simulator; hardware gate open | Three cycles on one PID, config flush, simulation stall, save replay |
-| 6 | Stage-1 touch controls | In progress | Every required Star Fox action executable by touch alone |
-| 7 | Analog touch and physical controller matrix | Pending | CVar fallback, aim evidence, per-model controller/rumble results |
+| 6 | Stage-1 touch controls | Complete on Simulator; hardware grip gate open | Every required Star Fox action executable by touch alone |
+| 7 | Analog touch and physical controller matrix | In progress | CVar fallback, aim evidence, per-model controller/rumble results |
 | 8 | iOS menus, scaling, and first-run polish | Pending | iPad+iPhone visual audit and persistent settings |
 | 9 | CI, packaging, docs, and clean replay | Pending | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
 
 ## Active gate
 
-**Phase 6 — Stage-1 touch controls.**
+**Phase 7 — Analog touch and physical controller matrix.**
 
 Expected:
 
-1. Adapt the reference touch component without changing its proven
-   touch-tracking, button, stick, overlay, and menu-visibility mechanisms.
-2. Map the Star Fox controls from the plan and resolve Q5/Q11 before accepting
-   the final bindings.
-3. Prove every required Star Fox action can be executed by touch alone,
-   including chords and double-tap barrel roll, while preserving menu access.
+1. Add the analog virtual-controller stage behind its own CVar while keeping
+   the complete Phase 6 keyboard-event overlay as the default fallback.
+2. Prove analog steering and aiming on Simulator without regressing every
+   Stage-1 touch action.
+3. Record physical-controller detection, gameplay, reconnect, and rumble per
+   available model; leave every unavailable hardware result explicitly open.
 
 No physical-controller, rumble, signing, package, or physical-device claim may
-be inferred from Simulator touch evidence.
+be inferred from Simulator touch evidence. Phase 6 remains complete only for
+the Stage-1 Simulator gate and unsigned-device compilation.
 
 ## Evidence log
 
@@ -520,6 +521,104 @@ be inferred from Simulator touch evidence.
   rumble, signing, package, and CI gates are not claimed. Execution proceeds
   to Phase 6.
 
+### 2026-07-27 — Phase 6 Stage-1 touch controls passed on Simulator
+
+- The maintained Starship patch now carries the complete iOS-only
+  `StarshipTouchControls.h` and 646-line Objective-C++ implementation. It
+  preserves HarkinianPad's proven UIKit overlay, SDL keyboard-event delivery,
+  safe-area layout, empty-space pass-through, independent menu button,
+  menu-visibility cancellation, and live CVar toggle. Short taps are held for
+  at least 80 ms so one-frame game polling cannot lose them. Buttons expose
+  one-second Hold and timed Double Tap accessibility actions; the stick
+  exposes Hold Up/Down/Left/Right while retaining ordinary eight-way drag.
+- Final bindings follow the game source: WASD stick; X Fire; C Bomb; Z/R
+  left/right bank; Space Pause; arrow-left Boost; arrow-down Brake; arrow-up
+  View; arrow-right Talk/C-Right; and T/G/F/H D-pad. The persistent `•••`
+  button uses F1. The plan inherited Escape from HarkinianPad, but Starship's
+  `GuiMenuBar` actually toggles on F1; the observed source contradicted the
+  plan, so the binding was corrected here rather than silently drifting.
+- Q5 is resolved. An exhaustive `U_JPAD`, `D_JPAD`, `L_JPAD`, and `R_JPAD`
+  source sweep found executable D-pad paths in `fox_effect.c`, `fox_hud.c`,
+  `fox_turret.c`, `fox_map.c`, `fox_option.c`, and `sys_main.c`. The Stage-1
+  overlay therefore includes all four D-pad directions instead of omitting
+  them as the plan's provisional table suggested.
+- Q11 is resolved. `SetDefaultKeyboardKeyToButtonMappings()` and
+  `SetDefaultKeyboardKeyToAxisDirectionMappings()` populate the built-in
+  Starship keyboard mappings only when caller-supplied maps are empty. The
+  live clean configuration accepted those mappings. Return was added as a
+  second Start default alongside Space; existing non-empty user mappings are
+  unchanged. Mouse-button defaults were deliberately not added because touch
+  already uses the established keyboard path and an incidental secondary
+  click would trigger a bomb.
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator, UDID
+  `08636791-2675-4675-8335-EF72EF954DCF`. The final accessibility tree exposed
+  Fire, Bomb, both banks, Pause, Menu, Boost, Brake, View, Talk, four D-pad
+  directions, and the directional stick actions. Touch alone moved from title
+  through menu and mission selection into gameplay. Settings → Controller →
+  Touch Controls removed and restored the gameplay overlay immediately, and
+  Menu removed all gameplay controls while preserving the independent Menu
+  button, then restored them on close.
+- Fire produced visible lasers; a one-second Fire hold produced the blue
+  charged shot; Bomb reduced the HUD count from three to two. Boost and Brake
+  each drove their visible meter/effect. One-second left and right bank holds
+  moved and banked the Arwing; the left-bank Double Tap action produced the
+  complete barrel-roll rotation. Pause stopped gameplay and resumed it with a
+  second tap. Talk was activated while Peppy's wingman-answer prompt was
+  visible and the prompt cleared into continued play.
+- The required chords were replayed through two concurrent accessibility
+  actions, not a keyboard or controller shortcut. Boost Hold plus Control
+  Stick Hold Down produced the somersault camera pull-back and Arwing loop.
+  In Training all-range mode, Brake Hold plus Control Stick Hold Down produced
+  the U-turn climb/rotation. The U-turn setup itself was reached through touch
+  gameplay; no debug warp or non-touch setup input was used.
+- The temporary Nintendo-content captures remain only under `/tmp`. Aggregate
+  SHA-256 values over sorted per-frame SHA-256 manifests are: Fire 16 frames
+  `3e22051366789488c4473f107b51f19991953ddd326862407b13ae921fd651a4`;
+  charge 24 frames
+  `89b69511b9019457db4705b6f9ac14ad5f900ddd4702c474386ebd7e878f48a0`;
+  Boost 18 frames
+  `4357d85d2a8a6ceb235583a93bb7cbb53e7d04ff72fa0cc41ca5b14b38e69251`;
+  Brake 16 frames
+  `014167b68f8ebce48cd9a3e8955ff45dd1e74cbb8dcbe037927968fad043de85`;
+  left/right bank 14/10 frames
+  `d45d567a24c06e4755a0862e7bbbc7860abbd5b6d517020b97bb1c09fd37c2e2` /
+  `588b226952c43f63f82601ea1141d92168e7f6eafd76d874fb1cbedaa5ba8fa5`;
+  barrel roll 18 frames
+  `8778c3639fc1e3cec405fd54729c51c9ed6890bf014f27a9e42f8b1b2c7c5999`;
+  Talk 16 frames
+  `32e8a4a3c2ebe81a2238f8ba2b26904d4bda1da049317457c9743c5b2be2492b`;
+  somersault 36 frames
+  `8ab6c48448f131911516f8a0498b5fb5b683b8028bd100f4d881c16dacd6757a`;
+  and all-range U-turn 32 frames
+  `a4f4ab7421324a8604656d92ba1f024826c235e39675250792e05c8af67d58a7`.
+- The clean-patch audit caught and fixed one reproducibility defect before the
+  gate closed: CMake references to the two new touch files were present while
+  those untracked upstream-worktree files were initially absent from the
+  maintained diff. The final patch includes both files and reverse-applies
+  cleanly. Disposable clones at the exact Starship and LUS pins accepted
+  apply, `git diff --check`, and reverse-apply; the Starship clone contained
+  both touch files after apply. Final patch SHA-256 values are
+  `patches/starship-ios.patch`
+  `69b0848fabbb33fba8a7fab34f1d42d3c5f4a4471d0864af844a7f0b0b5e73d4`
+  and `patches/libultraship-ios.patch`
+  `0957d740b035f55fe4ce9a7f8d68cd385d196ffc594387ec3bbb638b096358b8`.
+- `scripts/build-ios.sh --device` replayed the pinned bootstrap, both complete
+  maintained patches, explicit `ENABLE_SCRIPTING=OFF`, OS64 arm64, and iOS
+  14.0, then ended `** BUILD SUCCEEDED **`. The final unsigned device binary
+  is SHA-256
+  `ec0c81b4d14eb710736eb995f4f0d181855418ed17dd488328bda416d618c023`;
+  `lipo` reports arm64 and `vtool` reports platform IOS, minimum 14.0, SDK
+  26.5. The bundled ROM-free `starship.o2r` remains
+  `b0c6c70d8e0df89381fac0e72e04221e508d8a12cd924c3b114441d9aa45705e`.
+  App audit, forbidden-file audit, patch reverse checks, `git diff --check`,
+  and repository safety all passed.
+- Boundary: this closes Stage-1 touch behavior on Simulator and compilation
+  of the same source for unsigned iPhoneOS. It does not prove physical thumb
+  comfort, simultaneous-touch feel on glass, physical-device rendering or
+  audio, a physical controller, reconnect, rumble, signing, IPA packaging, or
+  CI. No physical iPhone, iPad, or controller is connected. Those hardware
+  results remain open, and execution proceeds to Phase 7.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
@@ -528,13 +627,13 @@ be inferred from Simulator touch evidence.
 | Q2 `starship.o2r` content audit | 3 | Resolved | Exact 13-file tracked manifest and byte equality; no ROM-derived content |
 | Q3 izzy2lost Android techniques | 4 | Resolved | Android imports a prebuilt archive and restarts; only SAF storage and direct-axis ideas transfer |
 | Q4 four-player versus state | Post-1.0 | Deferred | Not load-bearing |
-| Q5 D-pad use | 6 | Open | Exhaustive source sweep |
+| Q5 D-pad use | 6 | Resolved | D-pad is executable in HUD/effects, turret, map, options, and system code; all four directions are included |
 | Q6 libpng in iOS closure | 2 | Resolved | Configure and final link closure contain no libpng |
 | Q7 audio producer sleep | 5 | Resolved | Source gate plus background stack sample captured the worker in `__psynch_cvwait` for all 770 samples |
 | Q8 true iOS floor | 9 | Open | Device/install evidence or explicit floor decision |
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |
 | Q10 Torch progress backport | 4 | Resolved | Exact commit conflicts across a large Companion rewrite; approved indeterminate spinner fallback used |
-| Q11 empty keyboard defaults | 6 | Open | Source read + observed input |
+| Q11 empty keyboard defaults | 6 | Resolved | Empty maps populate built-ins; clean live config used them; Return added as a second Start default |
 | Q12 silent-audio reproduction | 3/4 | Open | Simulator SDL init passed at 32000 Hz stereo/1024; physical-device audibility remains open |
 | Q13 upstream posture | Optional | Deferred | Not a plan dependency |
 
