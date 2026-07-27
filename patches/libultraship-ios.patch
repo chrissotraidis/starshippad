@@ -1,0 +1,22 @@
+diff --git a/cmake/dependencies/ios.cmake b/cmake/dependencies/ios.cmake
+index 2ed98be1..18a8dd3b 100644
+--- a/cmake/dependencies/ios.cmake
++++ b/cmake/dependencies/ios.cmake
+@@ -6,7 +6,7 @@ if (NOT ${SDL2_FOUND})
+     FetchContent_Declare(
+         SDL2
+         GIT_REPOSITORY https://github.com/libsdl-org/SDL.git
+-        GIT_TAG release-2.28.1
++        GIT_TAG release-2.32.10
+         OVERRIDE_FIND_PACKAGE
+     )
+     FetchContent_MakeAvailable(SDL2)
+@@ -43,7 +43,7 @@ if (NOT ${spdlog_FOUND})
+     FetchContent_Declare(
+         spdlog
+         GIT_REPOSITORY https://github.com/gabime/spdlog.git
+-        GIT_TAG v1.14.1
++        GIT_TAG v1.16.0
+         OVERRIDE_FIND_PACKAGE
+     )
+     FetchContent_MakeAvailable(spdlog)
