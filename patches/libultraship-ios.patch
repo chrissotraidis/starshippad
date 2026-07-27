@@ -1,5 +1,5 @@
 diff --git a/cmake/dependencies/ios.cmake b/cmake/dependencies/ios.cmake
-index 2ed98be1..18a8dd3b 100644
+index 2ed98be1..dc2bf801 100644
 --- a/cmake/dependencies/ios.cmake
 +++ b/cmake/dependencies/ios.cmake
 @@ -6,7 +6,7 @@ if (NOT ${SDL2_FOUND})
@@ -11,7 +11,7 @@ index 2ed98be1..18a8dd3b 100644
          OVERRIDE_FIND_PACKAGE
      )
      FetchContent_MakeAvailable(SDL2)
-@@ -43,7 +43,7 @@ if (NOT ${spdlog_FOUND})
+@@ -43,13 +43,19 @@ if (NOT ${spdlog_FOUND})
      FetchContent_Declare(
          spdlog
          GIT_REPOSITORY https://github.com/gabime/spdlog.git
@@ -20,7 +20,6 @@ index 2ed98be1..18a8dd3b 100644
          OVERRIDE_FIND_PACKAGE
      )
      FetchContent_MakeAvailable(spdlog)
-@@ -49,6 +49,12 @@ if (NOT ${spdlog_FOUND})
  endif()
  
  #=================== libzip ===================
@@ -69,10 +68,10 @@ index dcb19c86..08c17b77 100644
      return CMAKE_INSTALL_PREFIX;
  #else
 diff --git a/src/audio/SDLAudioPlayer.cpp b/src/audio/SDLAudioPlayer.cpp
-index a979f176..aeec36ce 100644
+index fce0c4a0..e8a19272 100644
 --- a/src/audio/SDLAudioPlayer.cpp
 +++ b/src/audio/SDLAudioPlayer.cpp
-@@ -25,6 +25,7 @@ bool SDLAudioPlayer::DoInit() {
+@@ -27,6 +27,7 @@ bool SDLAudioPlayer::DoInit() {
          return false;
      }
      SDL_PauseAudioDevice(mDevice, 0);
@@ -80,6 +79,33 @@ index a979f176..aeec36ce 100644
      return true;
  }
  
+diff --git a/src/graphic/Fast3D/Fast3dWindow.cpp b/src/graphic/Fast3D/Fast3dWindow.cpp
+index ca3abf0a..2e8ffee5 100644
+--- a/src/graphic/Fast3D/Fast3dWindow.cpp
++++ b/src/graphic/Fast3D/Fast3dWindow.cpp
+@@ -159,6 +159,10 @@ void Fast3dWindow::Close() {
+     mWindowManagerApi->Close();
+ }
+ 
++void Fast3dWindow::RunGuiOnly() {
++    mInterpreter->RunGuiOnly();
++}
++
+ void Fast3dWindow::StartFrame() {
+     mInterpreter->StartFrame();
+ }
+diff --git a/src/graphic/Fast3D/Fast3dWindow.h b/src/graphic/Fast3D/Fast3dWindow.h
+index abce1d29..5352e5fb 100644
+--- a/src/graphic/Fast3D/Fast3dWindow.h
++++ b/src/graphic/Fast3D/Fast3dWindow.h
+@@ -55,6 +55,7 @@ class Fast3dWindow : public Ship::Window {
+     void SetTextureFilter(FilteringMode filteringMode);
+     void SetRendererUCode(UcodeHandlers ucode);
+     void EnableSRGBMode();
++    void RunGuiOnly();
+     bool DrawAndRunGraphicsCommands(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtxReplacements);
+ 
+     std::weak_ptr<Interpreter> GetInterpreterWeak() const;
 diff --git a/src/graphic/Fast3D/backends/gfx_sdl2.cpp b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
 index 1387e280..0bec8baf 100644
 --- a/src/graphic/Fast3D/backends/gfx_sdl2.cpp
@@ -112,3 +138,63 @@ index 1387e280..0bec8baf 100644
      auto nextFullscreenState = isNativeMacOSFullscreenActive(mWnd);
      if (mFullScreen != nextFullscreenState) {
          mFullScreen = nextFullscreenState;
+diff --git a/src/graphic/Fast3D/interpreter.cpp b/src/graphic/Fast3D/interpreter.cpp
+index 607909ec..a2340fc9 100644
+--- a/src/graphic/Fast3D/interpreter.cpp
++++ b/src/graphic/Fast3D/interpreter.cpp
+@@ -4291,6 +4291,43 @@ void Interpreter::StartFrame() {
+ 
+ GfxExecStack g_exec_stack = {};
+ 
++void Interpreter::RunGuiOnly() {
++    SpReset();
++
++    mGetPixelDepthPending.clear();
++    mGetPixelDepthCached.clear();
++
++    mRapi->UpdateFramebufferParameters(0, mGfxCurrentWindowDimensions.width, mGfxCurrentWindowDimensions.height, 1,
++                                       false, true, true, !mRendersToFb);
++    mRapi->StartFrame();
++    mRapi->StartDrawToFramebuffer(mRendersToFb ? mGameFb : 0, (float)mCurDimensions.height / mNativeDimensions.height);
++    mRapi->ClearFramebuffer(true, true);
++    mRdp->viewport_or_scissor_changed = true;
++    mRenderingState.viewport = {};
++    mRenderingState.scissor = {};
++
++    Flush();
++    mGfxFrameBuffer = 0;
++
++    if (mRendersToFb) {
++        mRapi->StartDrawToFramebuffer(0, 1);
++        mRapi->ClearFramebuffer(true, true);
++        if (mMsaaLevel > 1) {
++            if (!ViewportMatchesRendererResolution()) {
++                mRapi->ResolveMSAAColorBuffer(mGameFbMsaaResolved, mGameFb);
++                mGfxFrameBuffer = (uintptr_t)mRapi->GetFramebufferTextureId(mGameFbMsaaResolved);
++            } else {
++                mRapi->ResolveMSAAColorBuffer(0, mGameFb);
++            }
++        } else {
++            mGfxFrameBuffer = (uintptr_t)mRapi->GetFramebufferTextureId(mGameFb);
++        }
++    } else if (mFbActive) {
++        mFbActive = false;
++        mRapi->StartDrawToFramebuffer(0, 1);
++    }
++}
++
+ void Interpreter::Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacements) {
+     SpReset();
+ 
+diff --git a/src/graphic/Fast3D/interpreter.h b/src/graphic/Fast3D/interpreter.h
+index e9e3f3b4..8b6f14c8 100644
+--- a/src/graphic/Fast3D/interpreter.h
++++ b/src/graphic/Fast3D/interpreter.h
+@@ -363,6 +363,7 @@ class Interpreter {
+     void GetDimensions(uint32_t* width, uint32_t* height, int32_t* posX, int32_t* posY);
+     GfxRenderingAPI* GetCurrentRenderingAPI();
+     void StartFrame();
++    void RunGuiOnly();
+     void Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacements);
+     void EndFrame();
+     void HandleWindowEvents();

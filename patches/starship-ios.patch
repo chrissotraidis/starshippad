@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e7d0e797..3e2c9388 100644
+index e7d0e797..52ddd6e2 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,8 +24,13 @@ if(APPLE)
@@ -195,7 +195,7 @@ index e7d0e797..3e2c9388 100644
  
  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
    install(FILES "${CMAKE_BINARY_DIR}/starship.o2r" DESTINATION . COMPONENT ${PROJECT_NAME})
-@@ -685,5 +758,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+@@ -685,5 +764,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
      set(CPACK_GENERATOR "Bundle")
  endif()
  
@@ -344,6 +344,246 @@ index 00000000..1b3913c4
 +    </array>
 +</dict>
 +</plist>
+diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
+index bc0ccb1f..bf141c8c 100644
+--- a/src/port/Engine.cpp
++++ b/src/port/Engine.cpp
+@@ -42,7 +42,11 @@
+ #include "port/mods/PortEnhancements.h"
+ 
+ #include <Fast3D/interpreter.h>
++#include <chrono>
+ #include <filesystem>
++#include <future>
++#include <optional>
++#include <sys/resource.h>
+ 
+ #ifdef __SWITCH__
+ #include <port/switch/SwitchImpl.h>
+@@ -81,7 +85,9 @@ GameEngine::GameEngine() {
+ 
+     if (std::filesystem::exists(main_path)) {
+         archiveFiles.push_back(main_path);
+-    } else {
++    }
++#ifndef __IOS__
++    else {
+         if (ShowYesNoBox("Starship - Asset Extraction", "Please provide a Starfox 64 ROM.\n\nSupported Versions:\nUS 1.0\nUS 1.1\n\nAssets will be extracted into an O2R file.") == IDYES) {
+             if(!GenAssetFile()){
+                 ShowMessage("Error", "An error occured, no O2R file was generated.\n\nExiting...");
+@@ -99,6 +105,7 @@ GameEngine::GameEngine() {
+             exit(1);
+         }
+     }
++#endif
+ 
+     if (std::filesystem::exists(assets_path)) {
+         archiveFiles.push_back(assets_path);
+@@ -170,6 +177,17 @@ GameEngine::GameEngine() {
+     auto audioChannelsSetting = Ship::Context::GetInstance()->GetConfig()->GetCurrentAudioChannelsSetting();
+     this->context->Init(archiveFiles, {}, 3, { 32000, 1024, 1680, audioChannelsSetting }, window, controlDeck);
+ 
++#ifdef __IOS__
++    if (!std::filesystem::exists(main_path)) {
++        if (!RunFirstRunExtraction()) {
++            throw std::runtime_error("StarshipPad first-run extraction ended before a main archive was ready");
++        }
++        if (context->GetResourceManager()->GetArchiveManager()->AddArchive(main_path) == nullptr) {
++            throw std::runtime_error("StarshipPad generated sf64.o2r but could not load it");
++        }
++    }
++#endif
++
+ #ifndef __SWITCH__
+     Ship::Context::GetInstance()->GetLogger()->set_level(
+         (spdlog::level::level_enum) CVarGetInteger("gDeveloperTools.LogLevel", 1));
+@@ -265,6 +283,163 @@ GameEngine::GameEngine() {
+     context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
+ }
+ 
++#ifdef __IOS__
++bool GameEngine::RunFirstRunExtraction() {
++    enum class SetupState {
++        AwaitingRom,
++        Extracting,
++        VoicePackInstalled,
++        Error,
++    };
++    struct ExtractionResult {
++        bool success = false;
++        bool mainGame = false;
++        uint64_t wallMilliseconds = 0;
++        long peakResidentBytes = 0;
++        std::string outputPath;
++        std::string error;
++    };
++
++    auto window = std::dynamic_pointer_cast<Fast::Fast3dWindow>(context->GetWindow());
++    auto gui = window->GetGui();
++    SetupState state = SetupState::AwaitingRom;
++    std::string statusMessage;
++    std::optional<std::future<ExtractionResult>> extractionTask;
++    uint64_t extractionFrames = 0;
++
++    const auto beginExtraction = [&]() {
++        const auto roms = GameExtractor::FindRoms(Ship::Context::GetAppDirectoryPath());
++        if (roms.empty()) {
++            statusMessage = "No supported ROM files were found. Copy one into StarshipPad in Files, then try again.";
++            state = SetupState::AwaitingRom;
++            return;
++        }
++
++        std::shared_ptr<GameExtractor> extractor;
++        std::string gameName;
++        for (const auto& romPath : roms) {
++            auto candidate = std::make_shared<GameExtractor>();
++            if (!candidate->LoadGame(romPath)) {
++                continue;
++            }
++            auto validatedGame = candidate->ValidateChecksum();
++            if (validatedGame.has_value()) {
++                extractor = candidate;
++                gameName = validatedGame.value();
++                break;
++            }
++        }
++
++        if (extractor == nullptr) {
++            statusMessage = "A ROM file was found, but its checksum is not supported.";
++            state = SetupState::Error;
++            return;
++        }
++
++        const bool mainGame = extractor->IsMainGame();
++        const std::string outputPath = extractor->GetExpectedOutputPath();
++        SPDLOG_INFO("StarshipPad extraction started: game={}, kind={}, output={}", gameName,
++                    mainGame ? "main" : "voice-pack", std::filesystem::path(outputPath).filename().string());
++        state = SetupState::Extracting;
++        statusMessage.clear();
++        extractionFrames = 0;
++
++        extractionTask.emplace(std::async(std::launch::async, [extractor, mainGame, outputPath]() {
++            const auto startedAt = std::chrono::steady_clock::now();
++            ExtractionResult result;
++            result.mainGame = mainGame;
++            result.outputPath = outputPath;
++            result.success = extractor->GenerateOTR() && std::filesystem::is_regular_file(outputPath);
++            result.error = extractor->GetLastError();
++            result.wallMilliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
++                                          std::chrono::steady_clock::now() - startedAt)
++                                          .count();
++            struct rusage usage = {};
++            if (getrusage(RUSAGE_SELF, &usage) == 0) {
++                result.peakResidentBytes = usage.ru_maxrss;
++            }
++            return result;
++        }));
++    };
++
++    while (window->IsRunning()) {
++        window->HandleEvents();
++
++        if (extractionTask.has_value() &&
++            extractionTask->wait_for(std::chrono::milliseconds(0)) == std::future_status::ready) {
++            ExtractionResult result = extractionTask->get();
++            extractionTask.reset();
++            SPDLOG_INFO("StarshipPad extraction finished: kind={}, success={}, wall_ms={}, peak_rss_bytes={}, output={}",
++                        result.mainGame ? "main" : "voice-pack", result.success, result.wallMilliseconds,
++                        result.peakResidentBytes, std::filesystem::path(result.outputPath).filename().string());
++
++            if (!result.success) {
++                statusMessage = result.error.empty() ? "Torch did not produce the expected archive." : result.error;
++                state = SetupState::Error;
++            } else if (result.mainGame) {
++                return true;
++            } else {
++                statusMessage = "Voice pack installed in Documents/mods. A supported US ROM is still required to run the game.";
++                state = SetupState::VoicePackInstalled;
++            }
++        }
++
++        if (!window->IsFrameReady()) {
++            SDL_Delay(1);
++            continue;
++        }
++
++        gui->StartDraw();
++        window->StartFrame();
++        window->RunGuiOnly();
++
++        const ImGuiIO& io = ImGui::GetIO();
++        const float setupWidth = std::min(620.0f, io.DisplaySize.x - 40.0f);
++        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always,
++                                ImVec2(0.5f, 0.5f));
++        ImGui::SetNextWindowSize(ImVec2(setupWidth, 0.0f), ImGuiCond_Always);
++        ImGui::Begin("StarshipPad Setup", nullptr,
++                     ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize |
++                         ImGuiWindowFlags_NoSavedSettings);
++        ImGui::TextWrapped("StarshipPad extracts assets from your legally acquired Star Fox 64 ROM on this device.");
++        ImGui::Spacing();
++
++        if (state == SetupState::Extracting) {
++            static const char spinner[] = "|/-\\";
++            ImGui::Text("Extracting assets... %c", spinner[(SDL_GetTicks() / 150) % 4]);
++            ImGui::TextWrapped("This can take several minutes. You can leave StarshipPad open while it works.");
++            ImGui::ProgressBar(0.0f, ImVec2(-1.0f, 34.0f), "Working");
++            extractionFrames++;
++            if (extractionFrames % 1800 == 0) {
++                SPDLOG_INFO("StarshipPad extraction UI remains responsive: rendered_frames={}", extractionFrames);
++            }
++        } else {
++            ImGui::TextWrapped("Open Files and copy any supported .z64, .n64, or .v64 file into:");
++            ImGui::Spacing();
++            ImGui::TextUnformatted("On My iPad > StarshipPad");
++            ImGui::Spacing();
++            ImGui::TextWrapped("Return here and choose Rescan. The filename does not matter.");
++            if (!statusMessage.empty()) {
++                ImGui::Spacing();
++                ImGui::TextWrapped("%s", statusMessage.c_str());
++            }
++            ImGui::Spacing();
++            const char* buttonLabel = state == SetupState::Error ? "Try Again" : "Rescan";
++            if (ImGui::Button(buttonLabel, ImVec2(160.0f, 44.0f))) {
++                beginExtraction();
++            }
++        }
++
++        ImGui::End();
++        gui->EndDraw();
++        window->EndFrame();
++        SDL_Delay(1);
++    }
++
++    return false;
++}
++#endif
++
+ bool GameEngine::GenAssetFile(bool exitOnFail) {
+     auto extractor = new GameExtractor();
+ 
+diff --git a/src/port/Engine.h b/src/port/Engine.h
+index b937e9db..47d4e296 100644
+--- a/src/port/Engine.h
++++ b/src/port/Engine.h
+@@ -47,6 +47,11 @@ class GameEngine {
+     static int ShowYesNoBox(const char* title, const char* box);
+     static void ShowMessage(const char* title, const char* message, SDL_MessageBoxFlags type = SDL_MESSAGEBOX_ERROR);
+     static bool HasVersion(SF64Version ver);
++
++  private:
++#ifdef __IOS__
++    bool RunFirstRunExtraction();
++#endif
+ };
+ 
+ Fast::Interpreter* GameEngine_GetInterpreter();
+@@ -89,4 +94,4 @@ uint32_t GameEngine_GetInterpolationFrameCount();
+ 
+ #ifdef __cplusplus
+ }
+-#endif
+\ No newline at end of file
++#endif
 diff --git a/src/port/Game.cpp b/src/port/Game.cpp
 index ef7894be..5368f8b5 100644
 --- a/src/port/Game.cpp
@@ -369,16 +609,272 @@ index ef7894be..5368f8b5 100644
 -}
 \ No newline at end of file
 +}
-diff --git a/tools/Torch/CMakeLists.txt b/tools/Torch/CMakeLists.txt
-index 6cc5937a..e63c69b5 100644
---- a/tools/Torch/CMakeLists.txt
-+++ b/tools/Torch/CMakeLists.txt
-@@ -227,7 +227,7 @@ if(USE_STANDALONE)
- 	FetchContent_Declare(
- 		spdlog
- 		GIT_REPOSITORY https://github.com/gabime/spdlog.git
--		GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7
-+		GIT_TAG v1.16.0
- 	)
+diff --git a/src/port/extractor/GameExtractor.cpp b/src/port/extractor/GameExtractor.cpp
+index 9be7f4b7..8ff28edc 100644
+--- a/src/port/extractor/GameExtractor.cpp
++++ b/src/port/extractor/GameExtractor.cpp
+@@ -1,6 +1,10 @@
+ #include "GameExtractor.h"
++#include "GameExtractorRoutes.h"
  
- 	FetchContent_MakeAvailable(spdlog)
++#include <algorithm>
++#include <cctype>
+ #include <fstream>
++#include <memory>
+ 
+ #include "Context.h"
+ #include "spdlog/spdlog.h"
+@@ -23,48 +27,151 @@ std::unordered_map<std::string, std::string> mGameList = {
+     { "3a05aba5549fa71e8b16a0c6e2c8481b070818a9", "Star Fox 64 (C) (V1.1) (Uncompressed)" },
+ };
+ 
++namespace {
++bool NormalizeRomByteOrder(std::vector<uint8_t>& data) {
++    if (data.size() < 0x40) {
++        return false;
++    }
++
++    if (data[0] == 0x80 && data[1] == 0x37 && data[2] == 0x12 && data[3] == 0x40) {
++        return true;
++    }
++
++    if (data[0] == 0x37 && data[1] == 0x80 && data[2] == 0x40 && data[3] == 0x12) {
++        for (size_t i = 0; i + 1 < data.size(); i += 2) {
++            std::swap(data[i], data[i + 1]);
++        }
++        return true;
++    }
++
++    if (data[0] == 0x40 && data[1] == 0x12 && data[2] == 0x37 && data[3] == 0x80) {
++        for (size_t i = 0; i + 3 < data.size(); i += 4) {
++            std::swap(data[i], data[i + 3]);
++            std::swap(data[i + 1], data[i + 2]);
++        }
++        return true;
++    }
++
++    return false;
++}
++
++} // namespace
++
++std::vector<fs::path> GameExtractor::FindRoms(const fs::path& directory) {
++    std::vector<fs::path> roms;
++    std::error_code error;
++    if (!fs::is_directory(directory, error)) {
++        return roms;
++    }
++
++    for (const auto& entry : fs::directory_iterator(directory, error)) {
++        if (error || !entry.is_regular_file()) {
++            continue;
++        }
++
++        std::string extension = entry.path().extension().string();
++        std::transform(extension.begin(), extension.end(), extension.begin(),
++                       [](unsigned char value) { return static_cast<char>(std::tolower(value)); });
++        if (extension == ".z64" || extension == ".n64" || extension == ".v64") {
++            roms.push_back(entry.path());
++        }
++    }
++    std::sort(roms.begin(), roms.end());
++    return roms;
++}
++
+ bool GameExtractor::SelectGameFromUI() {
+ #if !defined(__IOS__) && !defined(__ANDROID__) && !defined(__SWITCH__)
+-    auto selection = pfd::open_file("Select a file", ".", { "N64 Roms", "*.z64" }).result();
++    auto selection = pfd::open_file("Select a file", ".", { "N64 Roms", "*.z64 *.n64 *.v64" }).result();
+ 
+     if (selection.empty()) {
+         return false;
+     }
+ 
+-    this->mGamePath = selection[0];
++    return LoadGame(selection[0]);
+ #else
+-    this->mGamePath = Ship::Context::GetPathRelativeToAppDirectory("baserom.us.rev1.z64");
++    const auto roms = FindRoms(Ship::Context::GetAppDirectoryPath());
++    if (roms.empty()) {
++        return false;
++    }
++    return LoadGame(roms.front());
+ #endif
++}
+ 
++bool GameExtractor::LoadGame(const fs::path& path) {
++    this->mGamePath = path;
+     std::ifstream file(this->mGamePath, std::ios::binary);
++    if (!file.is_open()) {
++        return false;
++    }
+     this->mGameData = std::vector<uint8_t>( std::istreambuf_iterator( file ), {} );
+     file.close();
++    this->mGameHash.clear();
++    std::string format = "unknown";
++    if (this->mGameData.size() >= 4) {
++        if (this->mGameData[0] == 0x80 && this->mGameData[1] == 0x37) {
++            format = "z64";
++        } else if (this->mGameData[0] == 0x37 && this->mGameData[1] == 0x80) {
++            format = "v64";
++        } else if (this->mGameData[0] == 0x40 && this->mGameData[1] == 0x12) {
++            format = "n64";
++        }
++    }
++    if (!NormalizeRomByteOrder(this->mGameData)) {
++        return false;
++    }
++    SPDLOG_INFO("ROM import candidate loaded: file={}, format={}", this->mGamePath.filename().string(), format);
+     return true;
+ }
+ 
+-std::optional<std::string> GameExtractor::ValidateChecksum() const {
+-    const auto rom = new N64::Cartridge(this->mGameData);
++std::optional<std::string> GameExtractor::ValidateChecksum() {
++    auto rom = std::make_unique<N64::Cartridge>(this->mGameData);
+     rom->Initialize();
+-    auto hash = rom->GetHash();
++    this->mGameHash = rom->GetHash();
+     
+-    if (mGameList.find(hash) == mGameList.end()) {
++    if (mGameList.find(this->mGameHash) == mGameList.end()) {
+         return std::nullopt;
+     }
+ 
+-    return mGameList[hash];
++    return mGameList[this->mGameHash];
+ }
+ 
+ bool GameExtractor::GenerateOTR() const {
+     const std::string assets_path = Ship::Context::GetAppBundlePath();
+     const std::string game_path = Ship::Context::GetAppDirectoryPath();
+ 
++    this->mLastError.clear();
+     Companion::Instance = new Companion(this->mGameData, ArchiveType::O2R, false, assets_path, game_path);
+ 
+     try {
+         Companion::Instance->Init(ExportType::Binary);
+     } catch (const std::exception& e) {
++        this->mLastError = e.what();
++        SPDLOG_ERROR("Torch extraction failed: {}", this->mLastError);
+         return false;
+     }
+ 
+     return true;
+ }
++
++bool GameExtractor::IsMainGame() const {
++    return StarshipPad::GetRomArchiveRoute(this->mGameHash) == StarshipPad::RomArchiveRoute::Main;
++}
++
++std::string GameExtractor::GetExpectedOutputPath() const {
++    const fs::path root = Ship::Context::GetAppDirectoryPath();
++    const std::string_view relativePath =
++        StarshipPad::GetRomArchiveRelativePath(StarshipPad::GetRomArchiveRoute(this->mGameHash));
++    if (relativePath.empty()) {
++        return {};
++    }
++    return (root / relativePath).string();
++}
++
++const fs::path& GameExtractor::GetGamePath() const {
++    return this->mGamePath;
++}
++
++const std::string& GameExtractor::GetLastError() const {
++    return this->mLastError;
++}
+diff --git a/src/port/extractor/GameExtractor.h b/src/port/extractor/GameExtractor.h
+index a6423495..48377a78 100644
+--- a/src/port/extractor/GameExtractor.h
++++ b/src/port/extractor/GameExtractor.h
+@@ -2,16 +2,25 @@
+ 
+ #include "Companion.h"
+ #include <filesystem>
++#include <optional>
++#include <string>
+ #include <vector>
+ #include <cstdint>
+ 
+ class GameExtractor {
+ public:
+-    static bool GenAssetFile();
+-    std::optional<std::string> ValidateChecksum() const;
++    static std::vector<fs::path> FindRoms(const fs::path& directory);
++    std::optional<std::string> ValidateChecksum();
+     bool SelectGameFromUI();
++    bool LoadGame(const fs::path& path);
+     bool GenerateOTR() const;
++    bool IsMainGame() const;
++    std::string GetExpectedOutputPath() const;
++    const fs::path& GetGamePath() const;
++    const std::string& GetLastError() const;
+ private:
+     fs::path mGamePath;
+     std::vector<uint8_t> mGameData;
+-};
+\ No newline at end of file
++    std::string mGameHash;
++    mutable std::string mLastError;
++};
+diff --git a/src/port/extractor/GameExtractorRoutes.h b/src/port/extractor/GameExtractorRoutes.h
+new file mode 100644
+index 00000000..79e9010b
+--- /dev/null
++++ b/src/port/extractor/GameExtractorRoutes.h
+@@ -0,0 +1,54 @@
++#pragma once
++
++#include <string_view>
++
++namespace StarshipPad {
++
++enum class RomArchiveRoute {
++    Unsupported,
++    Main,
++    JapaneseVoice,
++    EuropeanVoice,
++    ChineseVoice,
++};
++
++constexpr RomArchiveRoute GetRomArchiveRoute(std::string_view hash) {
++    if (hash == "d8b1088520f7c5f81433292a9258c1184afa1457" ||
++        hash == "63b69f0ef36306257481afc250f9bc304c7162b2" ||
++        hash == "09f0d105f476b00efa5303a3ebc42e60a7753b7a" ||
++        hash == "f7475fb11e7e6830f82883412638e8390791ab87") {
++        return RomArchiveRoute::Main;
++    }
++    if (hash == "9bd71afbecf4d0a43146e4e7a893395e19bf3220" ||
++        hash == "d064229a32cc05ab85e2381ce07744eb3ffaf530") {
++        return RomArchiveRoute::JapaneseVoice;
++    }
++    if (hash == "05b307b8804f992af1a1e2fbafbd588501fdf799" ||
++        hash == "09f5d5c14219fc77a36c5a6ad5e63f7abd8b3385" ||
++        hash == "e6dad7523ff8f83fad6fbdb59d472b4f76340c2b") {
++        return RomArchiveRoute::EuropeanVoice;
++    }
++    if (hash == "c8a10699dea52f4bb2e2311935c1376dfb352e7a" ||
++        hash == "3a05aba5549fa71e8b16a0c6e2c8481b070818a9") {
++        return RomArchiveRoute::ChineseVoice;
++    }
++    return RomArchiveRoute::Unsupported;
++}
++
++constexpr std::string_view GetRomArchiveRelativePath(RomArchiveRoute route) {
++    switch (route) {
++        case RomArchiveRoute::Main:
++            return "sf64.o2r";
++        case RomArchiveRoute::JapaneseVoice:
++            return "mods/sf64jp.o2r";
++        case RomArchiveRoute::EuropeanVoice:
++            return "mods/sf64eu.o2r";
++        case RomArchiveRoute::ChineseVoice:
++            return "mods/sf64cn.o2r";
++        case RomArchiveRoute::Unsupported:
++            return {};
++    }
++    return {};
++}
++
++} // namespace StarshipPad

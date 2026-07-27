@@ -54,8 +54,8 @@ evidence belong to StarshipPad.
 | 1 | Focused LUS link patch | Complete | Clean apply/reverse-apply and replayed LUS build |
 | 2 | Full Starship iOS app compiles and links | Complete | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
 | 3 | Metal title screen in iPad Simulator | Complete | Capture, runtime log, SDL audio-init line |
-| 4 | Files import and on-device Torch extraction | In progress | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
-| 5 | Lifecycle, audio pause, and persistence | Pending | Three cycles on one PID, config flush, simulation stall, save replay |
+| 4 | Files import and on-device Torch extraction | Complete on Simulator; hardware gate open | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
+| 5 | Lifecycle, audio pause, and persistence | In progress | Three cycles on one PID, config flush, simulation stall, save replay |
 | 6 | Stage-1 touch controls | Pending | Every required Star Fox action executable by touch alone |
 | 7 | Analog touch and physical controller matrix | Pending | CVar fallback, aim evidence, per-model controller/rumble results |
 | 8 | iOS menus, scaling, and first-run polish | Pending | iPad+iPhone visual audit and persistent settings |
@@ -63,23 +63,22 @@ evidence belong to StarshipPad.
 
 ## Active gate
 
-**Phase 4 — Files import and on-device Torch extraction.**
+**Phase 5 — Lifecycle, audio pause, and persistence.**
 
 Expected:
 
-1. Read and record the load-bearing techniques in the izzy2lost Android
-   implementation before changing extraction.
-2. A clean app container imports both a `.z64` and byteswapped `.v64` with
-   arbitrary filenames through Files, provides Rescan, keeps the UI
-   responsive while extraction runs off the main thread, and boots the
-   extracted game.
-3. A relaunch reuses `sf64.o2r` without extraction. A JP or EU input routes
-   to the voice-pack path instead of failing as the main game.
-4. Record wall-clock time and peak resident memory for the on-device
-   extraction path. Estimates do not count as evidence.
+1. Backport the focused LUS lifecycle, synchronous config flush, audio pause,
+   background frame-ready, depth-read guards, and iOS scaling changes.
+2. Prove three background/foreground cycles on one Simulator PID without a
+   crash; simulation does not advance while backgrounded and config flushes at
+   each transition.
+3. Prove the archive and save remain stable, then background and kill the app
+   and verify the save survives relaunch.
+4. Audit the Starship audio producer so its background path blocks instead of
+   spinning.
 
-No physical-device extraction result may be inferred from Simulator evidence.
-Lifecycle, touch, controller, signing, and package claims remain outside this
+No physical-device audio or lifecycle result may be inferred from Simulator
+evidence. Touch, controller, signing, and package claims remain outside this
 gate.
 
 ## Evidence log
@@ -328,20 +327,145 @@ gate.
   source checkouts, and build directories remain ignored or under `/tmp` and
   are not commit inputs.
 
+### 2026-07-27 — Phase 4 Files import and extraction passed on Simulator
+
+- Q3 resolved before extraction changes. The local read-only clone of
+  `izzy2lost/Starship` was inspected at
+  `f2794c26dd0bab87a5f5d755150fb8f025c77379`. Its Android layer persists a
+  Storage Access Framework tree URI, copies a prebuilt `sf64.o2r` in 8 KiB
+  chunks followed by stream flush and file-descriptor sync, synchronizes
+  mods, downloads a separate Torch executable, restarts after import, and
+  drives direct touch axes. It does not run Torch in-process: its native
+  extractor still requires a hardcoded baserom and the Android flow imports
+  an archive produced elsewhere. StarshipPad reused only the relevant
+  storage/axis design knowledge; its window-first in-process extraction and
+  no-restart transition remain distinct.
+- Q10 resolved with the plan's approved fallback. The exact progress commit
+  `d0042dc6bfa12a6bee5702aa6b67f9a65873509c` is fetchable in the pinned Torch
+  repository, but a focused no-commit cherry-pick conflicts in both
+  `src/Companion.cpp` and `src/main.cpp`. The Companion conflict is a
+  700-plus-line parser/export restructure against the pinned revision, not a
+  small progress callback backport. The attempt was discarded; Torch remains
+  pinned and the first-run UI uses an indeterminate spinner.
+- The maintained LUS patch adds only the proven renderer-only setup loop
+  needed to draw first-run ImGui before game resources exist. The maintained
+  Starship patch now scans Files-visible Documents for any case-insensitive
+  `.z64`, `.n64`, or `.v64` filename, normalizes all three N64 byte orders in
+  memory, validates the existing SHA-1 table, and maps US inputs to
+  `Documents/sf64.o2r` and JP/EU/CN inputs to their `Documents/mods/`
+  voice-pack archives. It creates the window first, runs one asynchronous
+  Torch worker while rendering setup frames, records measured wall time and
+  peak RSS, mounts a successful main archive dynamically, and contains no
+  normal-flow iOS `exit()`.
+- The arm64 iPad Simulator replay built successfully. The app bundle contains
+  the audited ROM-free `starship.o2r`, 103 YAML inputs, and no ROM,
+  `sf64*.o2r`, `.otr`, or `.ipa`. The current maintained patches both
+  reverse-apply cleanly:
+  `patches/libultraship-ios.patch` SHA-256
+  `460d61e19c3977b82c9e9069fa5153c4bd594f86c8d93ee7088130127cc20b1f`;
+  `patches/starship-ios.patch` SHA-256
+  `70367f049f8bfcfdf7f1eb6640c160558656ab915ef45227dc7664590f47d59f`.
+  This regeneration also corrected a clean-checkout defect found during the
+  Phase 4 audit: the earlier patch referenced, but did not contain, the new
+  `cmake/ios-deps.cmake`, plist, and asset-catalog JSON files. All five new
+  iOS text files and the pure ROM-route header are now patch entries; the
+  repository-owned icon remains installed by `apply-source-patches.sh`.
+  A disposable checkout at the exact Starship pin accepted the complete
+  patch, contained every new iOS text file, passed `git diff --check`, and
+  accepted the reverse-apply check.
+- Clean-container `.v64` case: the ignored legal US 1.1 ROM was copied to
+  Documents as `flight-test.v64`. Rescan logged `format=v64`, normalized and
+  identified it as `Star Fox 64 (U) (V1.1)`, and began one worker. The setup
+  renderer logged responsive-frame evidence every roughly 30 seconds from
+  1,800 through 23,400 frames. Torch reported `Done! Took 394070ms`; the app
+  recorded `success=true`, wall time `394073` ms, and peak RSS
+  `303202304` bytes.
+- That worker produced `Documents/sf64.o2r`, 14,559,161 bytes, SHA-256
+  `0f6f6b574161d3da36ef577438d4662553027cc5a70c8837c61b0136e6432c73`,
+  and `Documents/torch.hash.yml`, 8,560 bytes, SHA-256
+  `f67f74aab580a5e26e78c47a88a849d0f7ada691b5fed01bedc61aa9444d36ce`.
+  ZIP integrity passed. The same PID mounted the archive and rendered the game
+  intro without restart. Temporary boot capture
+  `/tmp/starshippad-phase4-v64-boot.png` has SHA-256
+  `ffcc6abcab1a664800ef3837cc1fad5c23f04e8e9291e79ab4a4aa22a45b1509`
+  and remains outside Git.
+- A terminate/relaunch reused the same archive. Its size, SHA-256, and mtime
+  `1785186632` remained unchanged; the app rendered the Nintendo 64 intro
+  without a second extraction start. Temporary relaunch capture
+  `/tmp/starshippad-phase4-v64-relaunch.png` has SHA-256
+  `6da2cac998c733413a49e7ce9911207dfb1b9a099933b81b6255256e796498c3`.
+- Clean-container `.z64` case: pairwise normalization
+  produced a temporary 12,582,912-byte file with native magic
+  `80 37 12 40` and expected SHA-1
+  `09f0d105f476b00efa5303a3ebc42e60a7753b7a`. The Files app visibly exposed
+  it at `On My iPad/StarshipPad/fox-flight-training.z64`; temporary Files
+  capture `/tmp/starshippad-phase4-files-z64.png` has SHA-256
+  `3380eb92ecd8bd71c0f990fd6b1eb093edf3bbdf1903b5772a8f49bbe4537ceb`.
+  Rescan logged `format=z64`, identified US 1.1, and started the responsive
+  extraction worker. The setup renderer remained responsive through 39,600
+  logged frames. Torch reported `Done! Took 690828ms`; the app recorded
+  `success=true`, wall time `690827` ms, and peak RSS `322617344` bytes.
+- The `.z64` worker produced `Documents/sf64.o2r`, 14,559,161 bytes,
+  SHA-256
+  `22348a12d4706180b507a65d65363e309649ffd7bf2e403df75d721e60ec5b45`,
+  plus the same 8,560-byte `torch.hash.yml` content as the `.v64` run. ZIP
+  integrity passed. The same PID mounted the archive and rendered the game
+  intro. Temporary boot capture
+  `/tmp/starshippad-phase4-z64-boot.png` has SHA-256
+  `5f9bf54dc68c30044622930b1f537c3f18bdc1dfbc3a0232623bffa1873fda7a`.
+- Terminate/relaunch preserved the `.z64` archive's size, SHA-256, and mtime
+  `1785187724`. The log still contained exactly one extraction-start marker
+  and the relaunched app rendered the game. Temporary relaunch capture
+  `/tmp/starshippad-phase4-z64-relaunch.png` has SHA-256
+  `1c780fa8fc2ebe4a2c74968eccf82006240ee556aa45e1ec0b8cf671b810acaf`.
+- The regional route seam is now a pure compile-time mapping used by the
+  runtime extractor, with `Unsupported` explicit instead of defaulting an
+  unknown hash to Europe. `scripts/verify-phase4-voice-routes.sh` compiles and
+  runs the focused test with the active macOS SDK. It passed all 11 supported
+  ROM hashes: four US hashes route to `sf64.o2r`, both JP hashes route to
+  `mods/sf64jp.o2r`, all three EU/Spanish hashes route to
+  `mods/sf64eu.o2r`, both CN hashes route to `mods/sf64cn.o2r`, and an
+  unknown hash remains unsupported. Script SHA-256:
+  `f3aadd7efa5d08453c30b9380736506ce202154d6e2b27cbf25448123307be43`;
+  focused test SHA-256:
+  `624977511a7d7cd23c7ed57f90770596edb93b08e4ddfd2ddcf8cbc7fdf702bb`.
+  No legal JP/EU ROM is present under local `ref/`, so this is deterministic
+  route proof, not a fabricated end-to-end regional extraction claim.
+- `xcrun xctrace list devices` reports only the local M1 Mac under Devices;
+  every iOS/iPadOS target listed is a Simulator. No physical iPhone or iPad
+  is connected, so a real-device Files move, extraction, RSS, and audibility
+  replay is unavailable on this machine and remains an explicit hardware
+  gate.
+- Final code rebuilt for both arm64 Simulator and unsigned arm64 iPhoneOS;
+  both ended `** BUILD SUCCEEDED **`. The final device binary has SHA-256
+  `cbd92270cf2f8c3886b078a1fef2f86fa82024d366bbcc158876ddbe80dbedb9`.
+  `scripts/audit-ios-app.sh` passed the device bundle, the forbidden-file
+  search returned empty, and repository safety passed.
+- Boundary: all ROMs, derived archives, extraction hashes, logs, and captures
+  remain in `ref/`, Simulator containers, or `/tmp`, never the repository or
+  app bundle. Phase 4's reproducible Simulator gate is complete for `.z64`,
+  byteswapped `.v64`, Files visibility, Rescan, responsiveness, dynamic boot,
+  relaunch, measurements, and deterministic regional routing. This is not a
+  physical-device extraction claim. End-to-end JP/EU extraction remains
+  untested because no lawful regional input is present; physical-device Files
+  move, extraction, RSS, and audio remain open hardware gates. Per the stated
+  no-device boundary, the audited unsigned device build plus Simulator matrix
+  is the deliverable and execution proceeds to Phase 5.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
 |---|---|---|---|
 | Q1 SDL 2.28.1 under current SDK | 0 | Resolved | Fails at configure under CMake 4.4; SDL 2.32.10 passes after one further spdlog 1.16.0 compiler correction |
 | Q2 `starship.o2r` content audit | 3 | Resolved | Exact 13-file tracked manifest and byte equality; no ROM-derived content |
-| Q3 izzy2lost Android techniques | 4 | Open | Read before Phase 4 |
+| Q3 izzy2lost Android techniques | 4 | Resolved | Android imports a prebuilt archive and restarts; only SAF storage and direct-axis ideas transfer |
 | Q4 four-player versus state | Post-1.0 | Deferred | Not load-bearing |
 | Q5 D-pad use | 6 | Open | Exhaustive source sweep |
 | Q6 libpng in iOS closure | 2 | Resolved | Configure and final link closure contain no libpng |
 | Q7 audio producer sleep | 5 | Open | Condvar instrumentation |
 | Q8 true iOS floor | 9 | Open | Device/install evidence or explicit floor decision |
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |
-| Q10 Torch progress backport | 4 | Open | Focused cherry-pick attempt |
+| Q10 Torch progress backport | 4 | Resolved | Exact commit conflicts across a large Companion rewrite; approved indeterminate spinner fallback used |
 | Q11 empty keyboard defaults | 6 | Open | Source read + observed input |
 | Q12 silent-audio reproduction | 3/4 | Open | Simulator SDL init passed at 32000 Hz stereo/1024; physical-device audibility remains open |
 | Q13 upstream posture | Optional | Deferred | Not a plan dependency |
