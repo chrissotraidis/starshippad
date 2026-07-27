@@ -55,31 +55,27 @@ evidence belong to StarshipPad.
 | 2 | Full Starship iOS app compiles and links | Complete | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
 | 3 | Metal title screen in iPad Simulator | Complete | Capture, runtime log, SDL audio-init line |
 | 4 | Files import and on-device Torch extraction | Complete on Simulator; hardware gate open | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
-| 5 | Lifecycle, audio pause, and persistence | In progress | Three cycles on one PID, config flush, simulation stall, save replay |
-| 6 | Stage-1 touch controls | Pending | Every required Star Fox action executable by touch alone |
+| 5 | Lifecycle, audio pause, and persistence | Complete on Simulator; hardware gate open | Three cycles on one PID, config flush, simulation stall, save replay |
+| 6 | Stage-1 touch controls | In progress | Every required Star Fox action executable by touch alone |
 | 7 | Analog touch and physical controller matrix | Pending | CVar fallback, aim evidence, per-model controller/rumble results |
 | 8 | iOS menus, scaling, and first-run polish | Pending | iPad+iPhone visual audit and persistent settings |
 | 9 | CI, packaging, docs, and clean replay | Pending | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
 
 ## Active gate
 
-**Phase 5 — Lifecycle, audio pause, and persistence.**
+**Phase 6 — Stage-1 touch controls.**
 
 Expected:
 
-1. Backport the focused LUS lifecycle, synchronous config flush, audio pause,
-   background frame-ready, depth-read guards, and iOS scaling changes.
-2. Prove three background/foreground cycles on one Simulator PID without a
-   crash; simulation does not advance while backgrounded and config flushes at
-   each transition.
-3. Prove the archive and save remain stable, then background and kill the app
-   and verify the save survives relaunch.
-4. Audit the Starship audio producer so its background path blocks instead of
-   spinning.
+1. Adapt the reference touch component without changing its proven
+   touch-tracking, button, stick, overlay, and menu-visibility mechanisms.
+2. Map the Star Fox controls from the plan and resolve Q5/Q11 before accepting
+   the final bindings.
+3. Prove every required Star Fox action can be executed by touch alone,
+   including chords and double-tap barrel roll, while preserving menu access.
 
-No physical-device audio or lifecycle result may be inferred from Simulator
-evidence. Touch, controller, signing, and package claims remain outside this
-gate.
+No physical-controller, rumble, signing, package, or physical-device claim may
+be inferred from Simulator touch evidence.
 
 ## Evidence log
 
@@ -452,6 +448,78 @@ gate.
   no-device boundary, the audited unsigned device build plus Simulator matrix
   is the deliverable and execution proceeds to Phase 5.
 
+### 2026-07-27 — Phase 5 lifecycle, audio pause, and persistence passed on Simulator
+
+- The maintained LUS patch now contains the focused shared lifecycle slice:
+  all SDL iOS application events, synchronous config flush, a null-safe audio
+  pause chain with queued-audio clearing, the playback audio category,
+  background frame availability, pixel-depth guards, the public
+  `WindowIsFrameReady()` bridge, and adaptive ImGui/overlay scaling. The
+  Starship patch gates `push_frame()` before simulation while the window is
+  unavailable. The implementation follows the proven HarkinianPad structure
+  without adding a second UIKit lifecycle observer.
+- Both maintained patches reverse-apply cleanly. Final Phase 5 SHA-256 values:
+  `patches/libultraship-ios.patch`
+  `4435c0ba7df840a95b9d86397c39323c28e28ad03b69c7f8ff42c1c23f8ecf02`;
+  `patches/starship-ios.patch`
+  `de754ed17f2e00c9413a64be15998d08a037842e4c7c5f3bd089fbf3ac772ea3`.
+  The final arm64 Simulator and unsigned arm64 iPhoneOS builds both ended
+  `** BUILD SUCCEEDED **`.
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator, UDID
+  `08636791-2675-4675-8335-EF72EF954DCF`. Three consecutive
+  background/foreground cycles ran on the same PID, `96084`, without a crash.
+  The exact pause/resume simulation-frame pairs were `365/365`, `917/917`,
+  and `1221/1221`. The first background dwell was 20 seconds and produced no
+  intervening game-console output. This directly proves the game simulation
+  did not advance while backgrounded.
+- Every background transition logged
+  `config_flushed=true audio_paused=true`; every foreground transition logged
+  `audio_paused=false`. The config mtime advanced at each background:
+  `2026-07-27T16:51:28-0500`,
+  `2026-07-27T16:52:38-0500`, and
+  `2026-07-27T16:53:11-0500`. After the first durable window-state flush, the
+  config content remained stable at 12,550 bytes and SHA-256
+  `e2ccc3eef6bab8e0debd0f6e32f21ff7a66605ce0b0f162609b3167a29c9a3e8`
+  through the remaining cycles and relaunch.
+- Integrity across the replay: `Documents/sf64.o2r` remained 14,559,161 bytes
+  with SHA-256
+  `22348a12d4706180b507a65d65363e309649ffd7bf2e403df75d721e60ec5b45`;
+  `Documents/default.sav` remained 512 bytes with SHA-256
+  `d29a2c96802e416491746959bd51e4caed84013e7054beafada6280ecd089a6b`.
+  For the explicit background-then-kill test, the save had that hash before
+  termination and the identical hash, size, and mtime after cold relaunch on
+  new PID `96395`. The relaunched title sequence rendered normally.
+- The HarkinianPad stale-depth crash scenario was replayed by the repeated
+  active-title background transitions after the depth-read guards were in
+  place. No StarshipPad crash report newer than the test start was present in
+  either the host or Simulator crash-report locations.
+- Q7 is resolved. `GameEngine::HandleAudioThread()` waits on
+  `audio.cv_to_thread` while `audio.processing` is false; the background game
+  gate stops the only `StartAudioFrame()` producer. A one-second process stack
+  sample during a later 20-second background dwell captured all 770 samples of
+  `GameEngine::HandleAudioThread()` in
+  `std::condition_variable::wait` → `_pthread_cond_wait` →
+  `__psynch_cvwait`, while the main thread spent 758 of 770 samples in the
+  bridge's 16 ms sleep. This proves the audio worker blocks rather than
+  spinning when simulation is gated.
+- Final Simulator binary SHA-256:
+  `5e1594a27d9398f5d47c019da8cd6d5d5ae9cfd6d3ca2ac75e5c7afdeace5c5c`;
+  `vtool` reports `platform IOSSIMULATOR`, minimum iOS `14.0`, SDK `26.5`.
+  Final unsigned device binary SHA-256:
+  `4bcac1d850093b7864c83a04960fdc079f6eeabac8426eaf213f5b9a732dad62`;
+  `file`/`lipo` report arm64 and `vtool` reports `platform IOS`, minimum iOS
+  `14.0`, SDK `26.5`. `scripts/audit-ios-app.sh` passed the device bundle,
+  whose ROM-free `starship.o2r` hashes to
+  `b0c6c70d8e0df89381fac0e72e04221e508d8a12cd924c3b114441d9aa45705e`.
+  The app is intentionally unsigned and repository safety passed.
+- Boundary: this is Simulator lifecycle, simulation, persistence, and
+  audio-worker blocking evidence plus a build/audit of the unsigned device
+  product. No physical iPhone or iPad is connected, so real-device lifecycle,
+  interruption behavior, background suspension, speaker audibility, and
+  save persistence remain open hardware gates. Touch, physical controller,
+  rumble, signing, package, and CI gates are not claimed. Execution proceeds
+  to Phase 6.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
@@ -462,7 +530,7 @@ gate.
 | Q4 four-player versus state | Post-1.0 | Deferred | Not load-bearing |
 | Q5 D-pad use | 6 | Open | Exhaustive source sweep |
 | Q6 libpng in iOS closure | 2 | Resolved | Configure and final link closure contain no libpng |
-| Q7 audio producer sleep | 5 | Open | Condvar instrumentation |
+| Q7 audio producer sleep | 5 | Resolved | Source gate plus background stack sample captured the worker in `__psynch_cvwait` for all 770 samples |
 | Q8 true iOS floor | 9 | Open | Device/install evidence or explicit floor decision |
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |
 | Q10 Torch progress backport | 4 | Resolved | Exact commit conflicts across a large Companion rewrite; approved indeterminate spinner fallback used |

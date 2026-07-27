@@ -585,7 +585,7 @@ index b937e9db..47d4e296 100644
 \ No newline at end of file
 +#endif
 diff --git a/src/port/Game.cpp b/src/port/Game.cpp
-index ef7894be..5368f8b5 100644
+index ef7894be..b3db47d1 100644
 --- a/src/port/Game.cpp
 +++ b/src/port/Game.cpp
 @@ -29,12 +29,9 @@ void push_frame() {
@@ -602,7 +602,32 @@ index ef7894be..5368f8b5 100644
  int main(int argc, char *argv[]) {
  #endif
      GameEngine::Create();
-@@ -47,4 +44,4 @@ int main(int argc, char *argv[]) {
+@@ -42,9 +39,29 @@ int main(int argc, char *argv[]) {
+     Lib_FillScreen(1);
+     Main_Initialize();
+     Main_ThreadEntry(NULL);
++#ifdef __IOS__
++    uint64_t simulationFrame = 0;
++    bool wasFrameReady = true;
++#endif
+     while (WindowIsRunning()) {
++#ifdef __IOS__
++        if (!WindowIsFrameReady()) {
++            if (wasFrameReady) {
++                SPDLOG_INFO("StarshipPad simulation paused: frame={}", simulationFrame);
++                wasFrameReady = false;
++            }
++            continue;
++        }
++        if (!wasFrameReady) {
++            SPDLOG_INFO("StarshipPad simulation resumed: frame={}", simulationFrame);
++            wasFrameReady = true;
++        }
++#endif
+         push_frame();
++#ifdef __IOS__
++        simulationFrame++;
++#endif
      }
      GameEngine::Instance->Destroy();
      return 0;

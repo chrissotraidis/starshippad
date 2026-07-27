@@ -67,11 +67,63 @@ index dcb19c86..08c17b77 100644
  #ifdef NON_PORTABLE
      return CMAKE_INSTALL_PREFIX;
  #else
+diff --git a/src/audio/Audio.cpp b/src/audio/Audio.cpp
+index 1f85fa5d..846be882 100644
+--- a/src/audio/Audio.cpp
++++ b/src/audio/Audio.cpp
+@@ -57,6 +57,12 @@ void Audio::SetCurrentAudioBackend(AudioBackend backend) {
+     InitAudioPlayer();
+ }
+ 
++void Audio::SetPaused(bool paused) {
++    if (mAudioPlayer) {
++        mAudioPlayer->SetPaused(paused);
++    }
++}
++
+ std::shared_ptr<std::vector<AudioBackend>> Audio::GetAvailableAudioBackends() {
+     return mAvailableAudioBackends;
+ }
+diff --git a/src/audio/Audio.h b/src/audio/Audio.h
+index 0f2e3e6b..30fcfdbf 100644
+--- a/src/audio/Audio.h
++++ b/src/audio/Audio.h
+@@ -19,6 +19,7 @@ class Audio {
+     AudioBackend GetCurrentAudioBackend();
+     std::shared_ptr<std::vector<AudioBackend>> GetAvailableAudioBackends();
+     void SetCurrentAudioBackend(AudioBackend backend);
++    void SetPaused(bool paused);
+ 
+   protected:
+     void InitAudioPlayer();
+diff --git a/src/audio/AudioPlayer.h b/src/audio/AudioPlayer.h
+index 57c56c75..b7309d38 100644
+--- a/src/audio/AudioPlayer.h
++++ b/src/audio/AudioPlayer.h
+@@ -23,6 +23,8 @@ class AudioPlayer {
+     bool Init();
+     virtual int32_t Buffered() = 0;
+     virtual void Play(const uint8_t* buf, size_t len) = 0;
++    virtual void SetPaused(bool) {
++    }
+ 
+     bool IsInitialized();
+ 
 diff --git a/src/audio/SDLAudioPlayer.cpp b/src/audio/SDLAudioPlayer.cpp
-index fce0c4a0..e8a19272 100644
+index fce0c4a0..c12c3afd 100644
 --- a/src/audio/SDLAudioPlayer.cpp
 +++ b/src/audio/SDLAudioPlayer.cpp
-@@ -27,6 +27,7 @@ bool SDLAudioPlayer::DoInit() {
+@@ -9,6 +9,9 @@ SDLAudioPlayer::~SDLAudioPlayer() {
+ }
+ 
+ bool SDLAudioPlayer::DoInit() {
++#ifdef __IOS__
++    SDL_SetHint(SDL_HINT_AUDIO_CATEGORY, "playback");
++#endif
+     if (SDL_Init(SDL_INIT_AUDIO) != 0) {
+         SPDLOG_ERROR("SDL init error: %s\n", SDL_GetError());
+         return false;
+@@ -27,6 +30,7 @@ bool SDLAudioPlayer::DoInit() {
          return false;
      }
      SDL_PauseAudioDevice(mDevice, 0);
@@ -79,11 +131,81 @@ index fce0c4a0..e8a19272 100644
      return true;
  }
  
+@@ -34,8 +38,19 @@ int SDLAudioPlayer::Buffered() {
+     return SDL_GetQueuedAudioSize(mDevice) / (sizeof(int16_t) * mNumChannels);
+ }
+ 
++void SDLAudioPlayer::SetPaused(bool paused) {
++    mPaused = paused;
++    if (mDevice == 0) {
++        return;
++    }
++    SDL_PauseAudioDevice(mDevice, paused ? 1 : 0);
++    if (paused) {
++        SDL_ClearQueuedAudio(mDevice);
++    }
++}
++
+ void SDLAudioPlayer::Play(const uint8_t* buf, size_t len) {
+-    if (Buffered() < 6000) {
++    if (!mPaused && Buffered() < 6000) {
+         // Don't fill the audio buffer too much in case this happens
+         SDL_QueueAudio(mDevice, buf, len);
+     }
+diff --git a/src/audio/SDLAudioPlayer.h b/src/audio/SDLAudioPlayer.h
+index fb82faf9..f2f40b7f 100644
+--- a/src/audio/SDLAudioPlayer.h
++++ b/src/audio/SDLAudioPlayer.h
+@@ -1,5 +1,6 @@
+ #pragma once
+ #include "AudioPlayer.h"
++#include <atomic>
+ #include <SDL2/SDL.h>
+ 
+ namespace Ship {
+@@ -9,14 +10,16 @@ class SDLAudioPlayer final : public AudioPlayer {
+     }
+     ~SDLAudioPlayer();
+ 
+-    int Buffered();
+-    void Play(const uint8_t* buf, size_t len);
++    int Buffered() override;
++    void Play(const uint8_t* buf, size_t len) override;
++    void SetPaused(bool paused) override;
+ 
+   protected:
+-    bool DoInit();
++    bool DoInit() override;
+ 
+   private:
+-    SDL_AudioDeviceID mDevice;
++    SDL_AudioDeviceID mDevice = 0;
+     int32_t mNumChannels = 2;
++    std::atomic<bool> mPaused = false;
+ };
+ } // namespace Ship
 diff --git a/src/graphic/Fast3D/Fast3dWindow.cpp b/src/graphic/Fast3D/Fast3dWindow.cpp
-index ca3abf0a..2e8ffee5 100644
+index ca3abf0a..10687cce 100644
 --- a/src/graphic/Fast3D/Fast3dWindow.cpp
 +++ b/src/graphic/Fast3D/Fast3dWindow.cpp
-@@ -159,6 +159,10 @@ void Fast3dWindow::Close() {
+@@ -108,10 +108,16 @@ void Fast3dWindow::SetMaximumFrameLatency(int32_t latency) {
+ }
+ 
+ void Fast3dWindow::GetPixelDepthPrepare(float x, float y) {
++    if (!IsFrameReady()) {
++        return;
++    }
+     mInterpreter->GetPixelDepthPrepare(x, y);
+ }
+ 
+ uint16_t Fast3dWindow::GetPixelDepth(float x, float y) {
++    if (!IsFrameReady()) {
++        return 0;
++    }
+     return mInterpreter->GetPixelDepth(x, y);
+ }
+ 
+@@ -159,6 +165,10 @@ void Fast3dWindow::Close() {
      mWindowManagerApi->Close();
  }
  
@@ -106,11 +228,37 @@ index abce1d29..5352e5fb 100644
      bool DrawAndRunGraphicsCommands(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtxReplacements);
  
      std::weak_ptr<Interpreter> GetInterpreterWeak() const;
+diff --git a/src/graphic/Fast3D/backends/gfx_sdl.h b/src/graphic/Fast3D/backends/gfx_sdl.h
+index cbb3a2a3..49a4e779 100644
+--- a/src/graphic/Fast3D/backends/gfx_sdl.h
++++ b/src/graphic/Fast3D/backends/gfx_sdl.h
+@@ -55,6 +55,9 @@ class GfxWindowBackendSDL2 final : public GfxWindowBackend {
+     int mSdlToLusTable[512];
+     float mMouseWheelX = 0.0f;
+     float mMouseWheelY = 0.0f;
++#ifdef __IOS__
++    bool mIsBackgrounded = false;
++#endif
+     // OTRTODO: These are redundant. Info can be queried from SDL.
+     int mWindowWidth = 640;
+     int mWindowHeight = 480;
 diff --git a/src/graphic/Fast3D/backends/gfx_sdl2.cpp b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
-index 1387e280..0bec8baf 100644
+index 1387e280..bcdffe1e 100644
 --- a/src/graphic/Fast3D/backends/gfx_sdl2.cpp
 +++ b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
-@@ -22,7 +22,9 @@
+@@ -9,6 +9,11 @@
+ #endif
+ 
+ #include "Context.h"
++#ifdef __IOS__
++#include "audio/Audio.h"
++#include "config/Config.h"
++#include "window/Window.h"
++#endif
+ #include "config/ConsoleVariable.h"
+ #include "controller/controldeck/ControlDeck.h"
+ #include "window/FileDropMgr.h"
+@@ -22,7 +27,9 @@
  #elif __APPLE__
  #include <SDL.h>
  #include "gfx_metal.h"
@@ -120,7 +268,36 @@ index 1387e280..0bec8baf 100644
  #else
  #include <SDL2/SDL.h>
  #define GL_GLEXT_PROTOTYPES 1
-@@ -228,7 +230,7 @@ void GfxWindowBackendSDL2::SetFullscreenImpl(bool on, bool call_callback) {
+@@ -46,6 +53,28 @@ LONG_PTR SDL_WndProc;
+ #endif
+ 
+ namespace Fast {
++#ifdef __IOS__
++static void SaveIOSConfiguration() {
++    auto context = Ship::Context::GetInstance();
++    if (context == nullptr) {
++        return;
++    }
++    if (context->GetWindow() != nullptr) {
++        context->GetWindow()->SaveWindowToConfig();
++    }
++    if (context->GetConfig() != nullptr) {
++        context->GetConfig()->Save();
++    }
++}
++
++static void SetIOSAudioPaused(bool paused) {
++    auto context = Ship::Context::GetInstance();
++    if (context != nullptr && context->GetAudio() != nullptr) {
++        context->GetAudio()->SetPaused(paused);
++    }
++}
++#endif
++
+ const SDL_Scancode lus_to_sdl_table[] = {
+     SDL_SCANCODE_UNKNOWN,
+     SDL_SCANCODE_ESCAPE,
+@@ -228,7 +257,7 @@ void GfxWindowBackendSDL2::SetFullscreenImpl(bool on, bool call_callback) {
          }
      }
  
@@ -129,7 +306,42 @@ index 1387e280..0bec8baf 100644
      // Implement fullscreening with native macOS APIs
      if (on != isNativeMacOSFullscreenActive(mWnd)) {
          toggleNativeMacOSFullscreen(mWnd);
-@@ -611,7 +613,7 @@ void GfxWindowBackendSDL2::HandleEvents() {
+@@ -594,6 +623,34 @@ void GfxWindowBackendSDL2::HandleSingleEvent(SDL_Event& event) {
+         case SDL_DROPFILE:
+             Ship::Context::GetInstance()->GetFileDropMgr()->SetDroppedFile(event.drop.file);
+             break;
++#ifdef __IOS__
++        case SDL_APP_WILLENTERBACKGROUND:
++            mIsBackgrounded = true;
++            SaveIOSConfiguration();
++            SetIOSAudioPaused(true);
++            SPDLOG_INFO("StarshipPad lifecycle: will-enter-background config_flushed=true audio_paused=true");
++            break;
++        case SDL_APP_DIDENTERBACKGROUND:
++            SPDLOG_INFO("StarshipPad lifecycle: did-enter-background");
++            break;
++        case SDL_APP_WILLENTERFOREGROUND:
++            SPDLOG_INFO("StarshipPad lifecycle: will-enter-foreground");
++            break;
++        case SDL_APP_DIDENTERFOREGROUND:
++            SetIOSAudioPaused(false);
++            mIsBackgrounded = false;
++            SPDLOG_INFO("StarshipPad lifecycle: did-enter-foreground audio_paused=false");
++            break;
++        case SDL_APP_LOWMEMORY:
++            SPDLOG_WARN("StarshipPad lifecycle: low-memory");
++            break;
++        case SDL_APP_TERMINATING:
++            mIsBackgrounded = true;
++            SaveIOSConfiguration();
++            SetIOSAudioPaused(true);
++            SPDLOG_INFO("StarshipPad lifecycle: terminating config_flushed=true audio_paused=true");
++            break;
++#endif
+         case SDL_QUIT:
+             Close();
+             break;
+@@ -611,7 +668,7 @@ void GfxWindowBackendSDL2::HandleEvents() {
      }
  
      // resync fullscreen state
@@ -138,6 +350,18 @@ index 1387e280..0bec8baf 100644
      auto nextFullscreenState = isNativeMacOSFullscreenActive(mWnd);
      if (mFullScreen != nextFullscreenState) {
          mFullScreen = nextFullscreenState;
+@@ -623,7 +680,11 @@ void GfxWindowBackendSDL2::HandleEvents() {
+ }
+ 
+ bool GfxWindowBackendSDL2::IsFrameReady() {
++#ifdef __IOS__
++    return !mIsBackgrounded;
++#else
+     return true;
++#endif
+ }
+ 
+ static uint64_t qpc_to_100ns(uint64_t qpc) {
 diff --git a/src/graphic/Fast3D/interpreter.cpp b/src/graphic/Fast3D/interpreter.cpp
 index 607909ec..a2340fc9 100644
 --- a/src/graphic/Fast3D/interpreter.cpp
@@ -198,3 +422,89 @@ index e9e3f3b4..8b6f14c8 100644
      void Run(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtx_replacements);
      void EndFrame();
      void HandleWindowEvents();
+diff --git a/src/public/bridge/windowbridge.cpp b/src/public/bridge/windowbridge.cpp
+index ef2bab44..aa29c83d 100644
+--- a/src/public/bridge/windowbridge.cpp
++++ b/src/public/bridge/windowbridge.cpp
+@@ -2,6 +2,9 @@
+ #include "window/Window.h"
+ #include "Context.h"
+ 
++#include <chrono>
++#include <thread>
++
+ extern "C" {
+ 
+ uint32_t WindowGetWidth() {
+@@ -20,6 +23,16 @@ bool WindowIsRunning() {
+     return Ship::Context::GetInstance()->GetWindow()->IsRunning();
+ }
+ 
++bool WindowIsFrameReady() {
++    auto window = Ship::Context::GetInstance()->GetWindow();
++    window->HandleEvents();
++    const bool ready = window->IsRunning() && window->IsFrameReady();
++    if (!ready) {
++        std::this_thread::sleep_for(std::chrono::milliseconds(16));
++    }
++    return ready;
++}
++
+ int32_t WindowGetPosX() {
+     return Ship::Context::GetInstance()->GetWindow()->GetPosX();
+ }
+diff --git a/src/public/bridge/windowbridge.h b/src/public/bridge/windowbridge.h
+index 623f16d3..48fda6bc 100644
+--- a/src/public/bridge/windowbridge.h
++++ b/src/public/bridge/windowbridge.h
+@@ -7,6 +7,7 @@ extern "C" {
+ #endif
+ 
+ bool WindowIsRunning();
++bool WindowIsFrameReady();
+ uint32_t WindowGetWidth();
+ uint32_t WindowGetHeight();
+ float WindowGetAspectRatio();
+diff --git a/src/window/gui/GameOverlay.cpp b/src/window/gui/GameOverlay.cpp
+index e4e47f5a..40c83e35 100644
+--- a/src/window/gui/GameOverlay.cpp
++++ b/src/window/gui/GameOverlay.cpp
+@@ -237,9 +237,10 @@ void GameOverlay::Draw() {
+             const float duration = overlay.duration / overlay.fadeTime;
+ 
+             const ImVec4 color = ImVec4(1.0f, 1.0f, 1.0f, duration);
+-#ifdef __ANDROID__
+-            const float textWidth = GetStringWidth(overlay.Value.c_str()) * 2.0f;
+-            const float textOffset = 40.0f * 2.0f;
++#if defined(__ANDROID__) || defined(__IOS__)
++            const float mobileScale = ImGui::GetIO().FontGlobalScale;
++            const float textWidth = GetStringWidth(overlay.Value.c_str()) * mobileScale;
++            const float textOffset = 40.0f * mobileScale;
+ #else
+             const float textWidth = GetStringWidth(overlay.Value.c_str());
+             const float textOffset = 40.0f;
+diff --git a/src/window/gui/Gui.cpp b/src/window/gui/Gui.cpp
+index 953d4514..6de3dcac 100644
+--- a/src/window/gui/Gui.cpp
++++ b/src/window/gui/Gui.cpp
+@@ -129,9 +129,19 @@ void Gui::Init(GuiWindowInitData windowImpl) {
+                                                           &iconsConfig, sIconsRanges);
+ 
+ #if defined(__ANDROID__)
+-    // Scale everything by 2 for Android
+     ImGui::GetStyle().ScaleAllSizes(2.0f);
+     mImGuiIo->FontGlobalScale = 2.0f;
++#elif defined(__IOS__)
++    SDL_Rect displayBounds = {};
++    float uiScale = 1.0f;
++    if (SDL_GetDisplayUsableBounds(0, &displayBounds) == 0) {
++        const int shortestSide = displayBounds.w < displayBounds.h ? displayBounds.w : displayBounds.h;
++        if (shortestSide >= 600) {
++            uiScale = 2.0f;
++        }
++    }
++    ImGui::GetStyle().ScaleAllSizes(uiScale);
++    mImGuiIo->FontGlobalScale = uiScale;
+ #endif
+ 
+     auto imguiIniPath = Context::GetPathRelativeToAppDirectory("imgui.ini");
