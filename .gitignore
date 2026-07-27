@@ -1,0 +1,32 @@
+# Local reference material (HarkinianPad tree, ROMs, IPAs) — never tracked.
+# Reference files are added manually on each machine that needs them.
+ref/
+
+# macOS noise
+.DS_Store
+
+# Pinned upstream source checkouts and build output (future build system,
+# per docs/starshippad-implementation-plan.md — HarkinianPad model)
+sources/
+build/
+build-*/
+artifacts/
+
+# ROMs and ROM-derived archives — must never enter this repository
+*.z64
+*.n64
+*.v64
+*.rom
+*.o2r
+*.otr
+*.mpq
+
+# Packaging and signing material
+*.ipa
+*.xcarchive
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.p8
+*.pem
+*.key
