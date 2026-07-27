@@ -51,8 +51,8 @@ evidence belong to StarshipPad.
 | Phase | Gate | State | Required evidence |
 |---|---|---|---|
 | 0 | Pinned bootstrap and minimally corrected LUS iOS library | Complete | Three verified pins, insurance patch, iphoneos `libultraship.a`, arm64 `lipo` |
-| 1 | Focused LUS link patch | In progress | Clean apply/reverse-apply and replayed LUS build |
-| 2 | Full Starship iOS app compiles and links | Pending | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
+| 1 | Focused LUS link patch | Complete | Clean apply/reverse-apply and replayed LUS build |
+| 2 | Full Starship iOS app compiles and links | In progress | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
 | 3 | Metal title screen in iPad Simulator | Pending | Capture, runtime log, SDL audio-init line |
 | 4 | Files import and on-device Torch extraction | Pending | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
 | 5 | Lifecycle, audio pause, and persistence | Pending | Three cycles on one PID, config flush, simulation stall, save replay |
@@ -63,19 +63,20 @@ evidence belong to StarshipPad.
 
 ## Active gate
 
-**Phase 1 — focused LUS link patch.**
+**Phase 2 — full Starship iOS app compiles and links.**
 
 Expected:
 
-1. The maintained LUS patch adds only the Phase 0 dependency corrections and
-   the link-critical iOS carve-outs identified in the plan.
-2. `git apply --check` accepts the patch against a clean `eaaf9d0` checkout,
-   and reverse-apply accepts the exact patched tree.
-3. The Phase 0 iPhoneOS 14.0 arm64 library build replays green.
-4. `git diff --check` is clean.
+1. The focused game patch creates the native bundle target and uses
+   SDL2main's UIKit entry point without enabling scripting or runtime codegen.
+2. Starship, LUS, Torch, Ogg, and Vorbis configure, compile, and link for
+   unsigned arm64 iPhoneOS with iOS 14.0 load metadata.
+3. The app bundle contains only the required ROM-free resources; bundle and
+   forbidden-file audits pass.
+4. The game patch cleanly applies and reverse-applies at the Starship pin.
 
-No Starship app, Simulator runtime, touch, device, signing, or packaging claim
-is permitted at this gate.
+No Simulator boot, title-screen render, physical-device, touch, signing, ROM
+extraction, or package claim is permitted at this gate.
 
 ## Evidence log
 
@@ -157,6 +158,37 @@ is permitted at this gate.
   replay reached the compiler and produced the evidence above. No Starship
   app, Simulator boot, physical-device run, signing, touch, ROM extraction,
   or package result is claimed by Phase 0.
+
+### 2026-07-27 — Phase 1 focused LUS link patch passed
+
+- `patches/libultraship-ios.patch` contains exactly four files and only:
+  the Phase 0 SDL/spdlog corrections; the `PLATFORM` preservation guard;
+  deletion of the iOS Documents override from `GetAppBundlePath`; and
+  macOS-only guards around the `macUtils` include and two fullscreen call
+  sites. SHA-256:
+  `ce81e8a23d2d6a60548a908622e940125238d17cd8b710f4bb9b2a950dae9a8a`.
+- A fresh local clone detached at
+  `eaaf9d0fc91e2c400f49ef2a1f8547a691ce4d3c` accepted
+  `git apply --check`, applied with a clean `git diff --check`, and accepted
+  `git apply --reverse --check`. Its resulting diff SHA-256 is the same
+  `ce81e8a...`, proving the tracked patch is the exact source delta.
+- `scripts/apply-source-patches.sh` applies the LUS patch idempotently and is
+  ready to layer the Phase 2 Starship patch when it exists.
+- Reconfigure with explicit `-DPLATFORM=OS64` reported
+  `Configuring iphoneos build for platform: OS64, architecture(s): arm64`,
+  target triple `arm64-apple-ios14.0`, and minimum deployment 14.0. This
+  proves the new guard no longer overwrites Starship's device platform with
+  `OS64COMBINED`.
+- The patched replay ended `** BUILD SUCCEEDED **`. Artifact
+  `build-ios-lus/src/Release-iphoneos/libultraship.a` is 4,113,552 bytes,
+  SHA-256
+  `8ebf93353de0dc57bac9beac2f7900392dd929b7241b1e3a719e13508106b4b6`.
+  `lipo` reports arm64; extracted `Context.o` reports `platform IOS`,
+  `minos 14.0`, `sdk 26.5`. Undefined-symbol inspection finds neither
+  `isNativeMacOSFullscreenActive` nor `toggleNativeMacOSFullscreen`.
+- Boundary: no full Starship application has configured or linked yet, so no
+  app bundle, Simulator, device, signing, touch, extraction, or package claim
+  is made.
 
 ## Open-question resolution ledger
 

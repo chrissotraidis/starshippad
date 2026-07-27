@@ -20,3 +20,70 @@ index 2ed98be1..18a8dd3b 100644
          OVERRIDE_FIND_PACKAGE
      )
      FetchContent_MakeAvailable(spdlog)
+diff --git a/cmake/ios-toolchain-populate.cmake b/cmake/ios-toolchain-populate.cmake
+index eb93fea4..644bcc26 100644
+--- a/cmake/ios-toolchain-populate.cmake
++++ b/cmake/ios-toolchain-populate.cmake
+@@ -1,4 +1,6 @@
+-set(PLATFORM "OS64COMBINED")
++if(NOT DEFINED PLATFORM)
++    set(PLATFORM "OS64COMBINED")
++endif()
+ include(FetchContent)
+ FetchContent_Declare(iostoolchain
+     GIT_REPOSITORY https://github.com/leetal/ios-cmake
+@@ -12,4 +14,4 @@ if(NOT iostoolchain_POPULATED)
+ endif()
+ set(CMAKE_IOS_TOOLCHAIN_FILE ${iostoolchain_SOURCE_DIR}/ios.toolchain.cmake)
+ set_property(GLOBAL PROPERTY IOS_TOOLCHAIN_FILE ${CMAKE_IOS_TOOLCHAIN_FILE})
+-include(${CMAKE_IOS_TOOLCHAIN_FILE})
+\ No newline at end of file
++include(${CMAKE_IOS_TOOLCHAIN_FILE})
+diff --git a/src/Context.cpp b/src/Context.cpp
+index dcb19c86..08c17b77 100644
+--- a/src/Context.cpp
++++ b/src/Context.cpp
+@@ -405,11 +405,6 @@ std::string Context::GetAppBundlePath() {
+     }
+ #endif
+ 
+-#ifdef __IOS__
+-    const char* home = getenv("HOME");
+-    return std::string(home) + "/Documents";
+-#endif
+-
+ #ifdef NON_PORTABLE
+     return CMAKE_INSTALL_PREFIX;
+ #else
+diff --git a/src/graphic/Fast3D/backends/gfx_sdl2.cpp b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
+index 1387e280..0bec8baf 100644
+--- a/src/graphic/Fast3D/backends/gfx_sdl2.cpp
++++ b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
+@@ -22,7 +22,9 @@
+ #elif __APPLE__
+ #include <SDL.h>
+ #include "gfx_metal.h"
++#ifndef __IOS__
+ #include "utils/macUtils.h"
++#endif
+ #else
+ #include <SDL2/SDL.h>
+ #define GL_GLEXT_PROTOTYPES 1
+@@ -228,7 +230,7 @@ void GfxWindowBackendSDL2::SetFullscreenImpl(bool on, bool call_callback) {
+         }
+     }
+ 
+-#if defined(__APPLE__)
++#if defined(__APPLE__) && !defined(__IOS__)
+     // Implement fullscreening with native macOS APIs
+     if (on != isNativeMacOSFullscreenActive(mWnd)) {
+         toggleNativeMacOSFullscreen(mWnd);
+@@ -611,7 +613,7 @@ void GfxWindowBackendSDL2::HandleEvents() {
+     }
+ 
+     // resync fullscreen state
+-#ifdef __APPLE__
++#if defined(__APPLE__) && !defined(__IOS__)
+     auto nextFullscreenState = isNativeMacOSFullscreenActive(mWnd);
+     if (mFullScreen != nextFullscreenState) {
+         mFullScreen = nextFullscreenState;
