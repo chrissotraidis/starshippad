@@ -53,8 +53,8 @@ evidence belong to StarshipPad.
 | 0 | Pinned bootstrap and minimally corrected LUS iOS library | Complete | Three verified pins, insurance patch, iphoneos `libultraship.a`, arm64 `lipo` |
 | 1 | Focused LUS link patch | Complete | Clean apply/reverse-apply and replayed LUS build |
 | 2 | Full Starship iOS app compiles and links | Complete | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
-| 3 | Metal title screen in iPad Simulator | In progress | Capture, runtime log, SDL audio-init line |
-| 4 | Files import and on-device Torch extraction | Pending | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
+| 3 | Metal title screen in iPad Simulator | Complete | Capture, runtime log, SDL audio-init line |
+| 4 | Files import and on-device Torch extraction | In progress | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
 | 5 | Lifecycle, audio pause, and persistence | Pending | Three cycles on one PID, config flush, simulation stall, save replay |
 | 6 | Stage-1 touch controls | Pending | Every required Star Fox action executable by touch alone |
 | 7 | Analog touch and physical controller matrix | Pending | CVar fallback, aim evidence, per-model controller/rumble results |
@@ -63,20 +63,24 @@ evidence belong to StarshipPad.
 
 ## Active gate
 
-**Phase 3 — Metal title screen in iPad Simulator.**
+**Phase 4 — Files import and on-device Torch extraction.**
 
 Expected:
 
-1. A host build produces the ROM-free `starship.o2r` and a local, ROM-derived
-   `sf64.o2r`; the former passes an entry audit and the latter never enters
-   Git or a distributable artifact.
-2. A `SIMULATORARM64` app builds and carries `IOSSIMULATOR` / iOS 14.0 load
-   metadata.
-3. The app installs and launches in an iPad Simulator, reaches the title
-   screen through Metal, and produces a capture plus SDL audio-init log.
+1. Read and record the load-bearing techniques in the izzy2lost Android
+   implementation before changing extraction.
+2. A clean app container imports both a `.z64` and byteswapped `.v64` with
+   arbitrary filenames through Files, provides Rescan, keeps the UI
+   responsive while extraction runs off the main thread, and boots the
+   extracted game.
+3. A relaunch reuses `sf64.o2r` without extraction. A JP or EU input routes
+   to the voice-pack path instead of failing as the main game.
+4. Record wall-clock time and peak resident memory for the on-device
+   extraction path. Estimates do not count as evidence.
 
-No physical-device, touch, on-device extraction, lifecycle, controller,
-signing, or package claim is permitted at this gate.
+No physical-device extraction result may be inferred from Simulator evidence.
+Lifecycle, touch, controller, signing, and package claims remain outside this
+gate.
 
 ## Evidence log
 
@@ -251,12 +255,85 @@ signing, or package claim is permitted at this gate.
   audio-init, physical-device, touch, extraction, lifecycle, signing, or IPA
   claim is made here.
 
+### 2026-07-27 — Phase 3 Metal iPad Simulator boot passed
+
+- `scripts/generate-port-archive.sh` performs the pinned host build and audits
+  `starship.o2r` before it can be bundled. It requires the archive manifest to
+  equal `git ls-files port` exactly, compares every archived byte with its
+  tracked source file, and rejects ROM/archive names. Script SHA-256:
+  `a941c674ddbbe9757913ce39fcf728b6c700a210a4da08b93580b95c141f2e5c`.
+- First clean host failure: Torch's standalone spdlog 1.12 snapshot fails under
+  Xcode 26.6 in bundled fmt with the same constant-expression class seen in
+  Phase 0. The Starship patch moves only standalone Torch to spdlog 1.16.0.
+  Its external build then exposed that the default multi-game factories pull
+  unrelated format code into the SF64 tool. The host external project now
+  explicitly disables SM64, MK64, F-Zero, and Mario Artist while keeping SF64
+  and NAudio enabled. NAudio cannot be disabled because Torch's Companion
+  unconditionally owns its audio manager. This is a build-scope correction,
+  not a Torch revision change; Torch remains pinned at `cd92cc0f`.
+- The replay built `GeneratePortO2R`. The resulting ROM-free
+  `sources/Starship/starship.o2r` is 10,536 bytes, has SHA-256
+  `b0c6c70d8e0df89381fac0e72e04221e508d8a12cd924c3b114441d9aa45705e`,
+  and contains exactly 13 tracked `port/` files: nine HUD-arrow assets plus
+  four tracked Metal, OpenGL, and DirectX shader files. ZIP integrity, exact
+  manifest equality, byte equality, and repository safety all passed.
+- Q2 resolved: `starship.o2r` contains only the 13 repository-owned files
+  above. It contains no ROM bytes, extracted game assets, `sf64.o2r`, or other
+  untracked input.
+- Phase 3's local boot fixture stayed outside the repository. Torch correctly
+  rejected the raw byteswapped `.v64`, whose SHA-256 is recorded in the
+  Phase 0 entry. A temporary pairwise byte swap produced a supported US 1.1
+  `.z64` with SHA-1
+  `09f0d105f476b00efa5303a3ebc42e60a7753b7a` and SHA-256
+  `385bcf1901ed12fb1152f3c227d1968cc54ae41e8566da66695df71af40a573f`.
+  Host Torch generated `/tmp/starshippad-phase3-runtime.FKKYZ0/sf64.o2r`,
+  14,559,161 bytes, SHA-256
+  `4233ea3755b554020db8fbe76e212e270d383ab973de9f8003c81e4fe6bb2444`;
+  `unzip -tq` passed. Torch reported `Done! Took 950839ms`. This is host-fixture
+  timing only and is not the Phase 4 on-device wall-clock or memory result.
+- First Simulator link failure: libzip's Zlib and BZip2 discovery leaked
+  absolute iPhoneOS SDK paths into an arm64 simulator link. The focused LUS
+  patch now derives both paths from `CMAKE_OSX_SYSROOT`. Reconfigure reported
+  both libraries in `iPhoneSimulator26.5.sdk`, and the exact link replay ended
+  `** BUILD SUCCEEDED **`.
+- The final simulator app binary is 8,353,656 bytes, SHA-256
+  `d958d3be2becac240638a60e00c7c3e5a61c6446d1999fd634b3e445c1661416`.
+  `file` and `lipo` report arm64; `vtool` reports `platform IOSSIMULATOR`,
+  `minos 14.0`, and `sdk 26.5`. The bundle carries the audited
+  `starship.o2r` with the same SHA-256 and no `sf64.o2r`.
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5,
+  UDID `08636791-2675-4675-8335-EF72EF954DCF`. After uninstall/install, the
+  clean data container received only the temporary derived `sf64.o2r`.
+  Runtime logs prove both the Documents archive and bundled
+  `StarshipPad.app/starship.o2r` were opened.
+- The successful SDL device-open path previously logged only failures. One
+  success log was added at that existing boundary. The final run recorded:
+  `SDL audio initialized: 32000 Hz, 2 channels, 1024 samples`.
+- The same final binary reached the Star Fox 64 title screen through the
+  Metal-capable simulator build. Temporary capture
+  `/tmp/starshippad-phase3-seq-1.png` is 1668x2420 and has SHA-256
+  `51cefde9574fb2563d8a52ac2fe4d04587caabef4ff8495fe6d786e903f20282`.
+  It remains outside Git because it depicts Nintendo-owned game content.
+  The headless Simulator LCD was portrait while the landscape-only game
+  surface was rotated within it; the complete title frame is visible.
+- Current maintained patch SHA-256 values after the Phase 3 corrections:
+  `patches/libultraship-ios.patch`
+  `7b149c6982efd43d53f19c9ee5300c7a64994c8d0096fb87ed0a9e8dc65ab6e8`;
+  `patches/starship-ios.patch`
+  `86922148433fe81726df52dd1fc58f6a64786ba377f995ec61f98aebe5735b46`.
+- Boundary: this is Simulator Metal/title and successful SDL initialization
+  evidence only. It is not physical-device audio, speaker audibility,
+  on-device extraction, Files-import, lifecycle, touch, controller, signing,
+  or package evidence. The raw ROM, normalized ROM, `sf64.o2r`, screenshots,
+  source checkouts, and build directories remain ignored or under `/tmp` and
+  are not commit inputs.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
 |---|---|---|---|
 | Q1 SDL 2.28.1 under current SDK | 0 | Resolved | Fails at configure under CMake 4.4; SDL 2.32.10 passes after one further spdlog 1.16.0 compiler correction |
-| Q2 `starship.o2r` content audit | 3 | Open | Archive enumeration + scripted gate |
+| Q2 `starship.o2r` content audit | 3 | Resolved | Exact 13-file tracked manifest and byte equality; no ROM-derived content |
 | Q3 izzy2lost Android techniques | 4 | Open | Read before Phase 4 |
 | Q4 four-player versus state | Post-1.0 | Deferred | Not load-bearing |
 | Q5 D-pad use | 6 | Open | Exhaustive source sweep |
@@ -266,7 +343,7 @@ signing, or package claim is permitted at this gate.
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |
 | Q10 Torch progress backport | 4 | Open | Focused cherry-pick attempt |
 | Q11 empty keyboard defaults | 6 | Open | Source read + observed input |
-| Q12 silent-audio reproduction | 3/4 | Open | Device evidence only |
+| Q12 silent-audio reproduction | 3/4 | Open | Simulator SDL init passed at 32000 Hz stereo/1024; physical-device audibility remains open |
 | Q13 upstream posture | Optional | Deferred | Not a plan dependency |
 
 ## External constraints

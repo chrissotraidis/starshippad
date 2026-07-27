@@ -20,6 +20,19 @@ index 2ed98be1..18a8dd3b 100644
          OVERRIDE_FIND_PACKAGE
      )
      FetchContent_MakeAvailable(spdlog)
+@@ -49,6 +49,12 @@ if (NOT ${spdlog_FOUND})
+ endif()
+ 
+ #=================== libzip ===================
++if(CMAKE_OSX_SYSROOT)
++    set(ZLIB_INCLUDE_DIR "${CMAKE_OSX_SYSROOT}/usr/include" CACHE PATH "" FORCE)
++    set(ZLIB_LIBRARY_RELEASE "${CMAKE_OSX_SYSROOT}/usr/lib/libz.tbd" CACHE FILEPATH "" FORCE)
++    set(BZIP2_INCLUDE_DIR "${CMAKE_OSX_SYSROOT}/usr/include" CACHE PATH "" FORCE)
++    set(BZIP2_LIBRARY_RELEASE "${CMAKE_OSX_SYSROOT}/usr/lib/libbz2.tbd" CACHE FILEPATH "" FORCE)
++endif()
+ find_package(libzip QUIET)
+ if (NOT ${libzip_FOUND})
+     set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
 diff --git a/cmake/ios-toolchain-populate.cmake b/cmake/ios-toolchain-populate.cmake
 index eb93fea4..644bcc26 100644
 --- a/cmake/ios-toolchain-populate.cmake
@@ -55,6 +68,18 @@ index dcb19c86..08c17b77 100644
  #ifdef NON_PORTABLE
      return CMAKE_INSTALL_PREFIX;
  #else
+diff --git a/src/audio/SDLAudioPlayer.cpp b/src/audio/SDLAudioPlayer.cpp
+index a979f176..aeec36ce 100644
+--- a/src/audio/SDLAudioPlayer.cpp
++++ b/src/audio/SDLAudioPlayer.cpp
+@@ -25,6 +25,7 @@ bool SDLAudioPlayer::DoInit() {
+         return false;
+     }
+     SDL_PauseAudioDevice(mDevice, 0);
++    SPDLOG_INFO("SDL audio initialized: {} Hz, {} channels, {} samples", have.freq, have.channels, have.samples);
+     return true;
+ }
+ 
 diff --git a/src/graphic/Fast3D/backends/gfx_sdl2.cpp b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
 index 1387e280..0bec8baf 100644
 --- a/src/graphic/Fast3D/backends/gfx_sdl2.cpp
