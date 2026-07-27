@@ -52,8 +52,8 @@ evidence belong to StarshipPad.
 |---|---|---|---|
 | 0 | Pinned bootstrap and minimally corrected LUS iOS library | Complete | Three verified pins, insurance patch, iphoneos `libultraship.a`, arm64 `lipo` |
 | 1 | Focused LUS link patch | Complete | Clean apply/reverse-apply and replayed LUS build |
-| 2 | Full Starship iOS app compiles and links | In progress | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
-| 3 | Metal title screen in iPad Simulator | Pending | Capture, runtime log, SDL audio-init line |
+| 2 | Full Starship iOS app compiles and links | Complete | arm64 app, iOS 14.0 load command, bundle validation, forbidden-file audit |
+| 3 | Metal title screen in iPad Simulator | In progress | Capture, runtime log, SDL audio-init line |
 | 4 | Files import and on-device Torch extraction | Pending | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
 | 5 | Lifecycle, audio pause, and persistence | Pending | Three cycles on one PID, config flush, simulation stall, save replay |
 | 6 | Stage-1 touch controls | Pending | Every required Star Fox action executable by touch alone |
@@ -63,20 +63,20 @@ evidence belong to StarshipPad.
 
 ## Active gate
 
-**Phase 2 — full Starship iOS app compiles and links.**
+**Phase 3 — Metal title screen in iPad Simulator.**
 
 Expected:
 
-1. The focused game patch creates the native bundle target and uses
-   SDL2main's UIKit entry point without enabling scripting or runtime codegen.
-2. Starship, LUS, Torch, Ogg, and Vorbis configure, compile, and link for
-   unsigned arm64 iPhoneOS with iOS 14.0 load metadata.
-3. The app bundle contains only the required ROM-free resources; bundle and
-   forbidden-file audits pass.
-4. The game patch cleanly applies and reverse-applies at the Starship pin.
+1. A host build produces the ROM-free `starship.o2r` and a local, ROM-derived
+   `sf64.o2r`; the former passes an entry audit and the latter never enters
+   Git or a distributable artifact.
+2. A `SIMULATORARM64` app builds and carries `IOSSIMULATOR` / iOS 14.0 load
+   metadata.
+3. The app installs and launches in an iPad Simulator, reaches the title
+   screen through Metal, and produces a capture plus SDL audio-init log.
 
-No Simulator boot, title-screen render, physical-device, touch, signing, ROM
-extraction, or package claim is permitted at this gate.
+No physical-device, touch, on-device extraction, lifecycle, controller,
+signing, or package claim is permitted at this gate.
 
 ## Evidence log
 
@@ -190,6 +190,67 @@ extraction, or package claim is permitted at this gate.
   app bundle, Simulator, device, signing, touch, extraction, or package claim
   is made.
 
+### 2026-07-27 — Phase 2 full unsigned StarshipPad app link passed
+
+- `patches/starship-ios.patch` applies to pinned Starship
+  `6202c44356fee70dd23e80a16933b211863d3e2d`, adds six text files/deltas,
+  reverse-applies cleanly, and has SHA-256
+  `720ffb137c755cffeb7da1da0311cbfff396083cd60ab56f61d4205a5b42766d`.
+  The patch supplies `ios/Info.plist.in`, the asset-catalog metadata,
+  `cmake/ios-deps.cmake`, the native bundle and SDL2main wiring, and the
+  iOS-only dependency/link slice. The original StarshipPad-owned icon is
+  tracked separately, matching HarkinianPad's asset-copy pattern:
+  `ios-assets/AppIcon.svg` SHA-256
+  `c06c18cf33dba898b9d62bcd98f08488c1ae081a15286b809d9ee871fa878080`;
+  opaque 1024x1024 `AppIcon.png` SHA-256
+  `77be15423fd37e9d6c4f0bebd500a6d89272e8d55da4965e2a751c36f5bffc22`.
+- Clean configure: OS64, arm64, target triple
+  `arm64-apple-ios14.0`, iPhoneOS SDK 26.5, spdlog 1.16.0, Ogg 1.3.6,
+  Vorbis 1.3.7, and Threads found. The configure reported no libpng
+  dependency or target. Host-only `TorchExternal`, `ExtractAssets`, and
+  `GeneratePortO2R` are excluded from the iOS project; the in-process Torch
+  library remains in the link.
+- First reproducible compile failure: two redundant global
+  `libultraship/src/config` include paths caused libzip's C source to resolve
+  its `"config.h"` include to LUS's C++ header and fail on `<vector>`. No
+  Starship source outside LUS includes a bare config header, so the two
+  redundant paths were removed. The replay then reached libzip itself.
+- Second reproducible compile failure: Starship's vendored iOS toolchain used
+  static-library `try_compile` checks, falsely setting `HAVE_MEMCPY_S=1`
+  without linking. That produced an undeclared `memcpy_s` call on iOS. The
+  patch enables the toolchain's documented `ENABLE_STRICT_TRY_COMPILE`
+  option. A new clean configure then reported `Looking for memcpy_s - not
+  found`; no hard-coded libzip workaround or unrelated dependency bump was
+  needed.
+- Full build command used unsigned generic-device settings and ended
+  `** BUILD SUCCEEDED **`. Xcode ran
+  `builtin-validationUtility ... StarshipPad.app -shallow-bundle` without
+  diagnostics.
+- Product:
+  `build-ios/Release-iphoneos/StarshipPad.app/StarshipPad`, 8,291,952 bytes,
+  SHA-256
+  `0beebf3ecfb712e5d7e929732aff96b8d89fcca94e67e2a5b37d869365592e2f`.
+  `file` and `lipo` report arm64; `vtool` reports `platform IOS`,
+  `minos 14.0`, `sdk 26.5`. The app is intentionally unsigned.
+- Processed bundle metadata proves identifier `com.example.starshippad`,
+  version 2.0.0, iPhone+iPad device families, landscape-only orientations,
+  Files sharing/open-in-place, arm64+Metal requirements, full-screen/status
+  bar behavior, ExtendedGamepad support, launch-screen dictionary, and a
+  compiled app icon. The 10,526,720-byte bundle has 111 files, including 103
+  YAML inputs, `config.yml`, `Assets.car`, and the pinned controller database
+  with expected SHA-256
+  `eb002773dc8a16aa96f9ee2609798e231a9deb60c45e21fbdd4e221c9e8b7d77`.
+- `scripts/audit-ios-app.sh` passed: arm64/iPhoneOS/iOS-14 metadata, required
+  resource presence, clean plist, no ROM, ROM-derived archive, unexpected
+  `.o2r`, `.otr`, `.mpq`, or stale signing material.
+- Q6 resolved: the complete link command contains no libpng. Torch links
+  without it; only Ogg and Vorbis were added for Starship audio.
+- Boundary: Phase 2 deliberately links without `starship.o2r`; Phase 3 is the
+  first gate that generates and audits that ROM-free archive, generates the
+  local-only `sf64.o2r`, and attempts a Simulator boot. No title-screen,
+  audio-init, physical-device, touch, extraction, lifecycle, signing, or IPA
+  claim is made here.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
@@ -199,7 +260,7 @@ extraction, or package claim is permitted at this gate.
 | Q3 izzy2lost Android techniques | 4 | Open | Read before Phase 4 |
 | Q4 four-player versus state | Post-1.0 | Deferred | Not load-bearing |
 | Q5 D-pad use | 6 | Open | Exhaustive source sweep |
-| Q6 libpng in iOS closure | 2 | Open | Configure/link evidence |
+| Q6 libpng in iOS closure | 2 | Resolved | Configure and final link closure contain no libpng |
 | Q7 audio producer sleep | 5 | Open | Condvar instrumentation |
 | Q8 true iOS floor | 9 | Open | Device/install evidence or explicit floor decision |
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |

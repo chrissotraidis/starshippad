@@ -35,4 +35,13 @@ apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch"
 
 if [ -s "$ROOT/patches/starship-ios.patch" ]; then
     apply_patch "$STARSHIP" "$ROOT/patches/starship-ios.patch"
+    icon_source="$ROOT/ios-assets/AppIcon.png"
+    icon_destination="$STARSHIP/ios/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+    if [ ! -f "$icon_source" ]; then
+        echo "Missing StarshipPad app icon: $icon_source" >&2
+        exit 1
+    fi
+    mkdir -p "$(dirname "$icon_destination")"
+    cp "$icon_source" "$icon_destination"
+    echo "Installed StarshipPad app icon"
 fi
