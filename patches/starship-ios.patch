@@ -382,10 +382,10 @@ index 00000000..e9816ffb
 +#endif
 diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
 new file mode 100644
-index 00000000..c6cbf80e
+index 00000000..f8be2d93
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,816 @@
+@@ -0,0 +1,865 @@
 +#import <UIKit/UIKit.h>
 +
 +#include <atomic>
@@ -550,6 +550,7 @@ index 00000000..c6cbf80e
 +
 +@property(nonatomic) SDL_Scancode scancode;
 +@property(nonatomic) BOOL inputPressed;
++@property(nonatomic) BOOL releasePending;
 +@property(nonatomic) uint32_t inputDownTicks;
 +@property(nonatomic) NSUInteger pressGeneration;
 +@property(nonatomic) BOOL usesPillShape;
@@ -561,6 +562,7 @@ index 00000000..c6cbf80e
 +                         pill:(BOOL)pill;
 +- (void)applyIdleColor:(UIColor*)idleColor
 +          pressedColor:(UIColor*)pressedColor;
++- (void)configureAccessibilityHold:(BOOL)hold doubleTap:(BOOL)doubleTap;
 +- (void)cancelInput;
 +
 +@end
@@ -585,14 +587,6 @@ index 00000000..c6cbf80e
 +                   forState:UIControlStateNormal];
 +        self.titleLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
 +        self.accessibilityLabel = label;
-+        self.accessibilityCustomActions = @[
-+            [[UIAccessibilityCustomAction alloc] initWithName:@"Hold"
-+                                                       target:self
-+                                                     selector:@selector(accessibilityHold:)],
-+            [[UIAccessibilityCustomAction alloc] initWithName:@"Double Tap"
-+                                                       target:self
-+                                                     selector:@selector(accessibilityDoubleTap:)]
-+        ];
 +
 +        [self addTarget:self
 +                      action:@selector(inputDown)
@@ -612,6 +606,21 @@ index 00000000..c6cbf80e
 +    self.backgroundColor = self.inputPressed ? pressedColor : idleColor;
 +}
 +
++- (void)configureAccessibilityHold:(BOOL)hold doubleTap:(BOOL)doubleTap {
++    NSMutableArray<UIAccessibilityCustomAction*>* actions = [NSMutableArray array];
++    if (hold) {
++        [actions addObject:[[UIAccessibilityCustomAction alloc] initWithName:@"Hold"
++                                                                      target:self
++                                                                    selector:@selector(accessibilityHold:)]];
++    }
++    if (doubleTap) {
++        [actions addObject:[[UIAccessibilityCustomAction alloc] initWithName:@"Double Tap"
++                                                                      target:self
++                                                                    selector:@selector(accessibilityDoubleTap:)]];
++    }
++    self.accessibilityCustomActions = actions;
++}
++
 +- (void)layoutSubviews {
 +    [super layoutSubviews];
 +    self.layer.cornerRadius =
@@ -621,11 +630,16 @@ index 00000000..c6cbf80e
 +
 +- (void)inputDown {
 +    if (self.inputPressed) {
-+        return;
++        if (!self.releasePending) {
++            return;
++        }
++        self.pressGeneration += 1;
++        [self finishInputUp];
 +    }
 +    self.pressGeneration += 1;
 +    self.inputDownTicks = SDL_GetTicks();
 +    self.inputPressed = YES;
++    self.releasePending = NO;
 +    self.backgroundColor = self.pressedColor;
 +    StarshipPad_PushControl(self.scancode, YES);
 +}
@@ -635,6 +649,7 @@ index 00000000..c6cbf80e
 +        return;
 +    }
 +    self.inputPressed = NO;
++    self.releasePending = NO;
 +    self.backgroundColor = self.idleColor;
 +    StarshipPad_PushControl(self.scancode, NO);
 +}
@@ -653,6 +668,7 @@ index 00000000..c6cbf80e
 +
 +    const NSUInteger generation = self.pressGeneration;
 +    const uint32_t remaining = minimumPressMilliseconds - elapsed;
++    self.releasePending = YES;
 +    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(remaining * NSEC_PER_MSEC)),
 +                   dispatch_get_main_queue(), ^{
 +                       if (self.pressGeneration == generation) {
@@ -891,7 +907,8 @@ index 00000000..c6cbf80e
 +@property(nonatomic, strong) NSArray<StarshipPadTouchButton*>* buttons;
 +@property(nonatomic, strong) StarshipPadTouchButton* buttonA;
 +@property(nonatomic, strong) StarshipPadTouchButton* buttonB;
-+@property(nonatomic, strong) StarshipPadTouchButton* buttonZ;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonZShoulder;
++@property(nonatomic, strong) StarshipPadTouchButton* buttonZFace;
 +@property(nonatomic, strong) StarshipPadTouchButton* buttonR;
 +@property(nonatomic, strong) StarshipPadTouchButton* buttonStart;
 +@property(nonatomic, strong) StarshipPadTouchButton* buttonBoost;
@@ -920,25 +937,27 @@ index 00000000..c6cbf80e
 +            [[StarshipPadTouchButton alloc] initWithLabel:@"A" scancode:SDL_SCANCODE_X pill:NO];
 +        self.buttonB =
 +            [[StarshipPadTouchButton alloc] initWithLabel:@"B" scancode:SDL_SCANCODE_C pill:NO];
-+        self.buttonZ =
++        self.buttonZShoulder =
 +            [[StarshipPadTouchButton alloc] initWithLabel:@"Z" scancode:SDL_SCANCODE_Z pill:YES];
++        self.buttonZFace =
++            [[StarshipPadTouchButton alloc] initWithLabel:@"Z" scancode:SDL_SCANCODE_Z pill:NO];
 +        self.buttonR =
 +            [[StarshipPadTouchButton alloc] initWithLabel:@"R" scancode:SDL_SCANCODE_R pill:YES];
-+        self.buttonStart = [[StarshipPadTouchButton alloc] initWithLabel:@"START"
++        self.buttonStart = [[StarshipPadTouchButton alloc] initWithLabel:@"▶"
 +                                                               scancode:SDL_SCANCODE_SPACE
-+                                                                   pill:YES];
-+        self.buttonBoost = [[StarshipPadTouchButton alloc] initWithLabel:@"BOOST"
++                                                                   pill:NO];
++        self.buttonBoost = [[StarshipPadTouchButton alloc] initWithLabel:@"◀"
 +                                                               scancode:SDL_SCANCODE_LEFT
-+                                                                   pill:YES];
-+        self.buttonBrake = [[StarshipPadTouchButton alloc] initWithLabel:@"BRAKE"
++                                                                   pill:NO];
++        self.buttonBrake = [[StarshipPadTouchButton alloc] initWithLabel:@"▼"
 +                                                               scancode:SDL_SCANCODE_DOWN
-+                                                                   pill:YES];
-+        self.buttonView = [[StarshipPadTouchButton alloc] initWithLabel:@"VIEW"
++                                                                   pill:NO];
++        self.buttonView = [[StarshipPadTouchButton alloc] initWithLabel:@"▲"
 +                                                              scancode:SDL_SCANCODE_UP
-+                                                                  pill:YES];
-+        self.buttonTalk = [[StarshipPadTouchButton alloc] initWithLabel:@"TALK"
++                                                                  pill:NO];
++        self.buttonTalk = [[StarshipPadTouchButton alloc] initWithLabel:@"▶"
 +                                                              scancode:SDL_SCANCODE_RIGHT
-+                                                                  pill:YES];
++                                                                  pill:NO];
 +        self.dUp =
 +            [[StarshipPadTouchButton alloc] initWithLabel:@"▲" scancode:SDL_SCANCODE_T pill:NO];
 +        self.dDown =
@@ -966,7 +985,8 @@ index 00000000..c6cbf80e
 +
 +        self.buttonA.accessibilityLabel = @"Fire";
 +        self.buttonB.accessibilityLabel = @"Bomb";
-+        self.buttonZ.accessibilityLabel = @"Bank left";
++        self.buttonZShoulder.accessibilityLabel = @"Bank left";
++        self.buttonZFace.accessibilityLabel = @"Bank left";
 +        self.buttonR.accessibilityLabel = @"Bank right";
 +        self.buttonStart.accessibilityLabel = @"Pause";
 +        self.buttonBoost.accessibilityLabel = @"Boost";
@@ -978,8 +998,19 @@ index 00000000..c6cbf80e
 +        self.dLeft.accessibilityLabel = @"D-pad Left";
 +        self.dRight.accessibilityLabel = @"D-pad Right";
 +
++        [self.buttonA configureAccessibilityHold:YES doubleTap:NO];
++        [self.buttonZShoulder configureAccessibilityHold:YES doubleTap:YES];
++        [self.buttonZFace configureAccessibilityHold:YES doubleTap:YES];
++        [self.buttonR configureAccessibilityHold:YES doubleTap:YES];
++        [self.buttonBoost configureAccessibilityHold:YES doubleTap:NO];
++        [self.buttonBrake configureAccessibilityHold:YES doubleTap:NO];
++        for (StarshipPadTouchButton* button in
++             @[ self.dUp, self.dDown, self.dLeft, self.dRight ]) {
++            [button configureAccessibilityHold:YES doubleTap:NO];
++        }
++
 +        self.buttons = @[
-+            self.buttonA, self.buttonB, self.buttonZ, self.buttonR,
++            self.buttonA, self.buttonB, self.buttonZShoulder, self.buttonZFace, self.buttonR,
 +            self.buttonStart, self.buttonBoost, self.buttonBrake,
 +            self.buttonView, self.buttonTalk, self.dUp, self.dDown,
 +            self.dLeft, self.dRight,
@@ -1002,31 +1033,40 @@ index 00000000..c6cbf80e
 +    UIEdgeInsets safe = self.safeAreaInsets;
 +    CGFloat width = CGRectGetWidth(self.bounds);
 +    CGFloat height = CGRectGetHeight(self.bounds);
-+    CGFloat scale = MAX(0.72, MIN(1.08, height / 650.0));
-+    CGFloat edge = 16.0 * scale;
++    CGFloat scale = MAX(0.78, MIN(1.12, height / 834.0));
++    CGFloat edge = 18.0 * scale;
 +    CGFloat left = safe.left + edge;
-+    CGFloat right = width - safe.right - edge;
-+    CGFloat top = safe.top + edge;
-+    CGFloat bottom = height - safe.bottom - edge;
++    CGFloat right = safe.right + edge;
++    CGFloat usableWidth = width - safe.left - safe.right;
++    CGFloat railWidth = MIN(250.0 * scale, usableWidth * 0.22);
++    CGFloat leftCenter = safe.left + railWidth * 0.5;
++    CGFloat rightCenter = width - safe.right - railWidth * 0.5;
++    CGFloat gripTopY = MAX(safe.top + edge, height * 0.38);
++    CGFloat middleCenterY = height * 0.60;
++    CGFloat lowCenterY = height * 0.86;
++    CGFloat stickCenterX = leftCenter + 65.0 * scale;
++    CGFloat stickCenterY = lowCenterY - 70.0 * scale;
++    CGFloat dpadCenterX = leftCenter - 30.0 * scale;
++    CGFloat dpadCenterY = middleCenterY + 5.0 * scale;
++    CGFloat faceCenterX = rightCenter + 24.0 * scale;
++    CGFloat faceCenterY = middleCenterY + 30.0 * scale;
++    CGFloat cpadCenterX = rightCenter + 24.0 * scale;
++    CGFloat cpadCenterY = lowCenterY - 20.0 * scale;
 +
 +    CGFloat stickSize = 150.0 * scale;
 +    self.controlStick.frame =
-+        CGRectMake(left, bottom - stickSize, stickSize, stickSize);
++        CGRectMake(stickCenterX - stickSize * 0.5, stickCenterY - stickSize * 0.5,
++                   stickSize, stickSize);
 +
-+    CGFloat shoulderWidth = 98.0 * scale;
-+    CGFloat shoulderHeight = 48.0 * scale;
-+    self.buttonZ.frame = CGRectMake(left, top, shoulderWidth, shoulderHeight);
-+    self.buttonR.frame =
-+        CGRectMake(right - shoulderWidth, top, shoulderWidth, shoulderHeight);
++    CGFloat pillHeight = MAX(44.0, 54.0 * scale);
++    CGFloat shoulderWidth = 106.0 * scale;
++    CGFloat shoulderY = gripTopY + 55.0 * scale;
++    self.buttonZShoulder.frame =
++        CGRectMake(left, shoulderY, shoulderWidth, pillHeight);
 +
-+    CGFloat startWidth = 82.0 * scale;
-+    CGFloat startHeight = 38.0 * scale;
-+    self.buttonStart.frame =
-+        CGRectMake(width * 0.5 - startWidth * 0.5, top, startWidth, startHeight);
-+
-+    CGFloat dSize = 36.0 * scale;
-+    CGFloat dRadius = 31.0 * scale;
-+    CGPoint dCenter = CGPointMake(left + 64.0 * scale, height * 0.43);
++    CGFloat dSize = MAX(44.0, 52.0 * scale);
++    CGFloat dRadius = 48.0 * scale;
++    CGPoint dCenter = CGPointMake(dpadCenterX, dpadCenterY);
 +    self.dUp.frame =
 +        CGRectMake(dCenter.x - dSize * 0.5,
 +                   dCenter.y - dRadius - dSize * 0.5, dSize, dSize);
@@ -1040,32 +1080,40 @@ index 00000000..c6cbf80e
 +        CGRectMake(dCenter.x + dRadius - dSize * 0.5,
 +                   dCenter.y - dSize * 0.5, dSize, dSize);
 +
-+    CGFloat railWidth = 112.0 * scale;
-+    CGFloat railHeight = 43.0 * scale;
-+    CGFloat railX = right - railWidth;
-+    CGFloat boostY = MAX(top + 70.0 * scale, height * 0.32);
-+    self.buttonBoost.frame = CGRectMake(railX, boostY, railWidth, railHeight);
-+    self.buttonBrake.frame =
-+        CGRectMake(railX, CGRectGetMaxY(self.buttonBoost.frame) + 10.0 * scale,
-+                   railWidth, railHeight);
-+
-+    CGFloat utilityWidth = 52.0 * scale;
-+    CGFloat utilityHeight = 38.0 * scale;
-+    CGFloat utilityY = CGRectGetMaxY(self.buttonBrake.frame) + 10.0 * scale;
-+    self.buttonView.frame =
-+        CGRectMake(railX, utilityY, utilityWidth, utilityHeight);
-+    self.buttonTalk.frame =
-+        CGRectMake(right - utilityWidth, utilityY, utilityWidth, utilityHeight);
-+
-+    CGFloat faceA = 76.0 * scale;
-+    CGFloat faceB = 60.0 * scale;
++    CGFloat faceSize = 66.0 * scale;
++    CGFloat faceX = faceCenterX - faceSize * 0.5;
 +    self.buttonA.frame =
-+        CGRectMake(right - faceA, bottom - faceA, faceA, faceA);
++        CGRectMake(faceX, faceCenterY + 12.0 * scale, faceSize, faceSize);
 +    self.buttonB.frame =
-+        CGRectMake(CGRectGetMinX(self.buttonA.frame) - faceB - 12.0 * scale,
-+                   bottom - faceB + 4.0 * scale, faceB, faceB);
++        CGRectMake(faceX - faceSize - 10.0 * scale,
++                   faceCenterY - faceSize * 0.5, faceSize, faceSize);
++    self.buttonZFace.frame =
++        CGRectMake(faceX, faceCenterY - faceSize - 12.0 * scale,
++                   faceSize, faceSize);
 +
-+    CGFloat labelSize = 16.0 * scale;
++    CGFloat cSize = MAX(44.0, 46.0 * scale);
++    CGFloat cRadius = 44.0 * scale;
++    CGPoint cCenter = CGPointMake(cpadCenterX, cpadCenterY);
++    self.buttonView.frame =
++        CGRectMake(cCenter.x - cSize * 0.5,
++                   cCenter.y - cRadius - cSize * 0.5, cSize, cSize);
++    self.buttonBrake.frame =
++        CGRectMake(cCenter.x - cSize * 0.5,
++                   cCenter.y + cRadius - cSize * 0.5, cSize, cSize);
++    self.buttonBoost.frame =
++        CGRectMake(cCenter.x - cRadius - cSize * 0.5,
++                   cCenter.y - cSize * 0.5, cSize, cSize);
++    self.buttonTalk.frame =
++        CGRectMake(cCenter.x + cRadius - cSize * 0.5,
++                   cCenter.y - cSize * 0.5, cSize, cSize);
++
++    self.buttonR.frame =
++        CGRectMake(width - right - shoulderWidth, shoulderY, shoulderWidth, pillHeight);
++    self.buttonStart.frame =
++        CGRectMake(CGRectGetMinX(self.buttonR.frame) - pillHeight - 12.0 * scale,
++                   shoulderY, pillHeight, pillHeight);
++
++    CGFloat labelSize = 18.0 * scale;
 +    for (StarshipPadTouchButton* button in self.buttons) {
 +        button.titleLabel.font = [UIFont systemFontOfSize:labelSize weight:UIFontWeightSemibold];
 +    }
@@ -1074,7 +1122,8 @@ index 00000000..c6cbf80e
 +    self.buttonB.titleLabel.font =
 +        [UIFont systemFontOfSize:19.0 * scale weight:UIFontWeightBold];
 +    for (StarshipPadTouchButton* button in
-+         @[ self.dUp, self.dDown, self.dLeft, self.dRight ]) {
++         @[ self.dUp, self.dDown, self.dLeft, self.dRight,
++            self.buttonBoost, self.buttonBrake, self.buttonView, self.buttonTalk ]) {
 +        button.titleLabel.font =
 +            [UIFont systemFontOfSize:13.0 * scale weight:UIFontWeightBold];
 +    }
@@ -1122,7 +1171,7 @@ index 00000000..c6cbf80e
 +            UIViewAutoresizingFlexibleLeftMargin | UIViewAutoresizingFlexibleBottomMargin;
 +    }
 +
-+    const CGFloat size = 38.0;
++    const CGFloat size = 44.0;
 +    const UIEdgeInsets safe = window.safeAreaInsets;
 +    sMenuButton.frame =
 +        CGRectMake(CGRectGetWidth(window.bounds) - safe.right - size - 8.0,
