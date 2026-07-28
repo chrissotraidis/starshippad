@@ -59,19 +59,20 @@ evidence belong to StarshipPad.
 | 6 | Stage-1 touch controls | Complete on Simulator; hardware grip gate open | Every required Star Fox action executable by touch alone |
 | 7 | Analog touch and physical controller matrix | Complete on Simulator; hardware matrix open | CVar fallback, aim evidence, per-model controller/rumble results |
 | 8 | iOS menus, scaling, and first-run polish | Complete on Simulator; hardware gate open | iPad+iPhone visual audit and persistent settings |
-| 9 | CI, packaging, docs, and clean replay | In progress | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
+| 9 | CI, packaging, docs, and clean replay | Local gate complete; CI externally blocked | Fresh-checkout audited unsigned IPA and signed refusal passed; GitHub Actions did not start because of account billing/spending policy |
 
 ## Active gate
 
-**Phase 9 — CI, packaging, docs, and clean replay.**
+**Phase 9 — CI blocked before runner allocation.**
 
-Local clean-replay and packaging evidence has passed. Publication and the
-remote GitHub Actions result are the remaining executable gate:
+Local clean-replay, packaging, and publication evidence has passed. GitHub
+Actions is the remaining gate, but the service currently refuses to allocate
+even the Ubuntu safety runner because of the account's billing/spending state.
 
-1. Commit and push the audited IPA packaging path, license closure, release
-   checklist, reproducible build documentation, and CI workflow.
-2. Require the published workflow to pass repository safety, the macOS
-   unsigned build/package, and the signed-package negative test.
+Required external action: resolve the GitHub account billing/payment or Actions
+spending-limit condition, then rerun workflow
+`StarshipPad iOS build` at the current `main`. A green repository-safety job
+and green macOS unsigned build/package job are still required to pass Phase 9.
 
 No signed install, physical-device, physical-controller, rumble, or audible
 speaker result may be inferred from the unsigned package or Simulator matrix.
@@ -829,11 +830,36 @@ Those hardware gates remain explicitly open on this machine.
   and Starship
   `264e1484ddac6f70019be92970cbc5f6037bafeb66053d008f54a0c635340b77`.
 - Boundary: the clean local build, package, signed refusal, patch
-  reversibility, and safety gates are proven. Remote CI has not yet run for
-  this unpublished tree, so Phase 9 remains in progress. The IPA is unsigned
-  and is not installable through the standard device path. No physical
+  reversibility, and safety gates are proven. At the time of this local
+  replay the tree was not yet published; the following entry records its
+  publication and remote result. The IPA is unsigned and is not installable
+  through the standard device path. No physical
   iPhone/iPad install, signing-team, controller, rumble, real-speaker audio,
   or hardware performance result is claimed.
+
+### 2026-07-27 — Phase 9 published; remote CI blocked before execution
+
+- Commit `a1914a1961e050de975203c23a799911807e1447` was pushed to
+  `origin/main`; local `main`, its upstream-tracking ref, and GitHub's remote
+  ref matched.
+- GitHub Actions run
+  `30331244577` for that exact head SHA concluded failure at 2026-07-28
+  05:18:24 UTC. The `Repository safety` job
+  (`90186668410`) contains zero steps and one pre-run annotation; the
+  dependent `Full app (unsigned iPhoneOS)` job was skipped.
+- The GitHub annotation states that the job did not start because recent
+  account payments failed or the Actions spending limit must be increased,
+  and directs the account owner to Billing & plans. This is an external
+  runner-allocation block, not a repository-safety, workflow-step, compiler,
+  test, or package failure. There is no runner log because no runner started.
+- Run URL:
+  `https://github.com/chrissotraidis/starshippad/actions/runs/30331244577`.
+  Phase 9 is not marked complete and CI is not represented as green.
+- Boundary: resolving GitHub account billing or spending policy is outside
+  this repository and requires account-owner authority. After that external
+  change, rerun the published workflow; no source correction is justified by
+  this pre-start failure. Physical-device, signing, controller, rumble,
+  real-speaker audio, and hardware performance gates also remain open.
 
 ## Open-question resolution ledger
 
