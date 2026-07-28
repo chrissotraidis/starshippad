@@ -943,6 +943,45 @@ Those hardware gates remain explicitly open on this machine.
   GitHub Actions remains externally blocked before runner allocation by the
   existing account billing/spending condition.
 
+### 2026-07-28 — Post-Phase 9 README visual-polish gate passed locally
+
+- The current StarshipPad and HarkinianPad repository pages were captured at
+  full-page scale before editing. The comparison confirmed structural parity
+  but also showed that StarshipPad's technical touch-layout diagram did not
+  provide HarkinianPad's immediate product-level visual hierarchy.
+- The opening now uses original 1672×941 project artwork created specifically
+  for StarshipPad's landscape iPad flight deck. It contains no game
+  screenshot, extracted asset, logo, character, written mark, or ROM-derived
+  material. The prior handcrafted layout SVG was removed rather than
+  presented as gameplay. PNG SHA-256:
+  `effaef35cdefc10127dbc838b1da387b62c79bc847efe73d7dd59bb6d1f95075`;
+  size: 1,637,019 bytes.
+- The README retains HarkinianPad's direct status/build/first-launch/touch
+  sequence while adding a compact navigation row, a three-part native /
+  touch-complete / reproducible summary, and explicit disclosure that the
+  hero is original ROM-free artwork. It also records why locally supplied
+  gameplay captures remain outside Git and release artifacts. README
+  SHA-256:
+  `ec97a7c6debd4dfc9e7090bbfe8daaad74ef15d6539f023668982c06bf21f6a3`.
+- GitHub's authenticated Markdown API accepted and rendered the complete GFM
+  document. All repository-relative Markdown and HTML image/link targets
+  resolve locally, `git diff --check` passes, and the repository safety audit
+  passes with the new binary asset.
+- The pushed branch was then inspected in GitHub's authenticated repository
+  view. The hero loaded at its intended 16:9 ratio, the disclosure and quick
+  links remained readable, the three summary cells stayed aligned, and the
+  install-status table followed without a broken asset or layout overflow.
+  A same-state top-of-page comparison against HarkinianPad confirmed matching
+  visual rhythm without copying its Nintendo-derived screenshots. Temporary
+  live-render capture SHA-256:
+  `b8c98a4f7185cb36378b3234b29ca02b8beac6705e2dbf66c2c0602ed4573070`;
+  temporary comparison SHA-256:
+  `0b026f2f2c302cadc5949c336a36459d3da6a2f924060e44ab1bd144617b2d14`.
+- Boundary: this is a documentation and visual-identity gate. It does not add
+  or extend any Simulator, device, signing, audio, performance, controller,
+  rumble, or touch-runtime claim. The generated hero is illustrative and is
+  labeled as such; it is not runtime evidence.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |

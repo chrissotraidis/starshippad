@@ -2,8 +2,8 @@
 
 <p align="center">
   <strong>Star Fox 64 via HarbourMasters/Starship, rebuilt for iPhone and iPad.</strong><br>
-  Native Metal rendering, Files-based setup, precision touch flight controls,
-  and the existing iOS game-controller path.
+  Native Metal rendering. Complete touch flight controls. Your game data stays
+  yours.
 </p>
 
 <p align="center">
@@ -15,17 +15,41 @@
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
-![StarshipPad's low-grip touch flight deck for landscape iPad](docs/readme/starshippad-ipad-touch-layout.svg)
+![Original ROM-free visualization of StarshipPad's landscape iPad flight deck](docs/readme/starshippad-hero.png)
+
+<p align="center">
+  <sub>Original ROM-free project artwork. No game screenshot or Nintendo-owned
+  asset is stored in this repository.</sub>
+</p>
+
+<p align="center">
+  <a href="#get-started">Build</a> ·
+  <a href="#first-flight">First flight</a> ·
+  <a href="#touch-flight-deck">Touch controls</a> ·
+  <a href="#what-works">Current status</a> ·
+  <a href="docs/BUILDING.md">Full build guide</a>
+</p>
 
 StarshipPad packages the complete
 [Starship](https://github.com/HarbourMasters/Starship) source port as a native
-iOS/iPadOS application. It renders through Metal, imports a user-provided
-supported Star Fox 64 ROM through Files, and provides an aim-first landscape
-controller derived directly from HarkinianPad's proven UIKit touch component.
+iOS/iPadOS application. It imports a user-provided supported Star Fox 64 ROM
+through Files and adds an aim-first landscape controller derived from
+HarkinianPad's proven UIKit touch component.
 
 This repository contains the mobile integration, maintained source patches,
 tests, and reproducible build scripts. It does **not** contain Star Fox 64, a
 ROM, extracted Nintendo assets, or a playable ROM-derived archive.
+
+<table>
+  <tr>
+    <td width="33%"><strong>Native iOS</strong><br>Metal rendering, system
+    lifecycle integration, Files import, and the existing controller path.</td>
+    <td width="33%"><strong>Touch-complete</strong><br>Every required flight,
+    combat, menu, and wingman action is available on the glass.</td>
+    <td width="33%"><strong>Reproducible</strong><br>Pinned upstream sources,
+    maintained patches, ROM-free builds, and package audits.</td>
+  </tr>
+</table>
 
 ## Install status
 
@@ -109,9 +133,10 @@ container.
 
 ## Touch flight deck
 
-StarshipPad starts with HarkinianPad's native-button, pass-through-overlay,
-safe-area, and persistent-menu mechanism, then applies Star Fox-specific
-bindings and continuous analog flight input.
+The flight deck is arranged for a landscape iPad held at both edges. It starts
+with HarkinianPad's native-button, pass-through-overlay, safe-area, and
+persistent-menu mechanism, then applies Star Fox-specific bindings and
+continuous analog flight input.
 
 - **Left grip:** bank-left Z, full D-pad, and analog flight stick.
 - **Right grip:** R and Pause, A/B/Z face cluster, and the yellow C-button
@@ -144,6 +169,11 @@ deck only when Touch Controls remains enabled.
 The exact layout, SDL bindings, accessibility contract, and evidence boundary
 are documented in
 [`docs/touch-controls-design.md`](docs/touch-controls-design.md).
+
+Simulator captures containing locally supplied game data are intentionally
+kept out of Git and release artifacts. The visual above is original project
+artwork; runtime evidence and its SHA-256 hashes are recorded in
+[`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## What works
 
