@@ -347,10 +347,10 @@ index 00000000..1b3913c4
 +</plist>
 diff --git a/ios/StarshipTouchControls.h b/ios/StarshipTouchControls.h
 new file mode 100644
-index 00000000..18a0200b
+index 00000000..f6365e0a
 --- /dev/null
 +++ b/ios/StarshipTouchControls.h
-@@ -0,0 +1,13 @@
+@@ -0,0 +1,14 @@
 +#pragma once
 +
 +#ifdef __cplusplus
@@ -359,6 +359,7 @@ index 00000000..18a0200b
 +
 +int StarshipPad_TouchControlsAvailable(void);
 +void StarshipPad_SetTouchControlsEnabled(int enabled);
++void StarshipPad_SetTouchAnalogEnabled(int enabled);
 +void StarshipPad_SetTouchControlsMenuVisible(int visible);
 +
 +#ifdef __cplusplus
@@ -366,16 +367,22 @@ index 00000000..18a0200b
 +#endif
 diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
 new file mode 100644
-index 00000000..2dbba76e
+index 00000000..da02bdca
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,646 @@
+@@ -0,0 +1,811 @@
 +#import <UIKit/UIKit.h>
 +
 +#include <atomic>
 +#include <SDL.h>
 +
 +#include "StarshipTouchControls.h"
++
++static BOOL sTouchControlsDesired;
++static BOOL sTouchAnalogDesired = YES;
++static std::atomic_bool sTouchControlsMenuVisible(false);
++static SDL_Joystick* sVirtualJoystick;
++static SDL_JoystickID sVirtualJoystickInstance = -1;
 +
 +static void StarshipPad_PushKey(SDL_Scancode scancode, BOOL pressed) {
 +    SDL_Event event = {};
@@ -390,6 +397,138 @@ index 00000000..2dbba76e
 +        event.key.windowID = SDL_GetWindowID(window);
 +    }
 +    SDL_PushEvent(&event);
++}
++
++static BOOL StarshipPad_PushVirtualControl(SDL_Scancode scancode, BOOL pressed) {
++    if (!sTouchAnalogDesired || sVirtualJoystick == nullptr) {
++        return NO;
++    }
++
++    SDL_GameControllerButton button = SDL_CONTROLLER_BUTTON_INVALID;
++    SDL_GameControllerAxis axis = SDL_CONTROLLER_AXIS_INVALID;
++    Sint16 axisValue = 0;
++    switch (scancode) {
++        case SDL_SCANCODE_X:
++            button = SDL_CONTROLLER_BUTTON_A;
++            break;
++        case SDL_SCANCODE_C:
++            button = SDL_CONTROLLER_BUTTON_X;
++            break;
++        case SDL_SCANCODE_Z:
++            button = SDL_CONTROLLER_BUTTON_LEFTSHOULDER;
++            break;
++        case SDL_SCANCODE_R:
++            button = SDL_CONTROLLER_BUTTON_RIGHTSHOULDER;
++            break;
++        case SDL_SCANCODE_SPACE:
++            button = SDL_CONTROLLER_BUTTON_START;
++            break;
++        case SDL_SCANCODE_LEFT:
++            button = SDL_CONTROLLER_BUTTON_Y;
++            break;
++        case SDL_SCANCODE_DOWN:
++            button = SDL_CONTROLLER_BUTTON_B;
++            break;
++        case SDL_SCANCODE_UP:
++            axis = SDL_CONTROLLER_AXIS_RIGHTY;
++            axisValue = pressed ? SDL_JOYSTICK_AXIS_MIN : 0;
++            break;
++        case SDL_SCANCODE_RIGHT:
++            axis = SDL_CONTROLLER_AXIS_RIGHTX;
++            axisValue = pressed ? SDL_JOYSTICK_AXIS_MAX : 0;
++            break;
++        case SDL_SCANCODE_T:
++            button = SDL_CONTROLLER_BUTTON_DPAD_UP;
++            break;
++        case SDL_SCANCODE_G:
++            button = SDL_CONTROLLER_BUTTON_DPAD_DOWN;
++            break;
++        case SDL_SCANCODE_F:
++            button = SDL_CONTROLLER_BUTTON_DPAD_LEFT;
++            break;
++        case SDL_SCANCODE_H:
++            button = SDL_CONTROLLER_BUTTON_DPAD_RIGHT;
++            break;
++        default:
++            return NO;
++    }
++
++    if (button != SDL_CONTROLLER_BUTTON_INVALID) {
++        return SDL_JoystickSetVirtualButton(sVirtualJoystick, button,
++                                            pressed ? SDL_PRESSED : SDL_RELEASED) == 0;
++    }
++    return SDL_JoystickSetVirtualAxis(sVirtualJoystick, axis, axisValue) == 0;
++}
++
++static void StarshipPad_PushControl(SDL_Scancode scancode, BOOL pressed) {
++    if (!StarshipPad_PushVirtualControl(scancode, pressed)) {
++        StarshipPad_PushKey(scancode, pressed);
++    }
++}
++
++static int StarshipPad_FindVirtualDeviceIndex(void) {
++    for (int index = 0; index < SDL_NumJoysticks(); index++) {
++        if (SDL_JoystickGetDeviceInstanceID(index) == sVirtualJoystickInstance) {
++            return index;
++        }
++    }
++    return -1;
++}
++
++static void StarshipPad_DetachVirtualController(void) {
++    if (sVirtualJoystick == nullptr) {
++        return;
++    }
++
++    const int deviceIndex = StarshipPad_FindVirtualDeviceIndex();
++    SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTX, 0);
++    SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTY, 0);
++    SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_RIGHTX, 0);
++    SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_RIGHTY, 0);
++    SDL_JoystickClose(sVirtualJoystick);
++    sVirtualJoystick = nullptr;
++    sVirtualJoystickInstance = -1;
++    if (deviceIndex >= 0) {
++        SDL_JoystickDetachVirtual(deviceIndex);
++    }
++    SDL_Log("StarshipPad analog touch controller detached");
++}
++
++static void StarshipPad_AttachVirtualController(void) {
++    if (sVirtualJoystick != nullptr) {
++        return;
++    }
++
++    const int deviceIndex =
++        SDL_JoystickAttachVirtual(SDL_JOYSTICK_TYPE_GAMECONTROLLER,
++                                  SDL_CONTROLLER_AXIS_MAX, SDL_CONTROLLER_BUTTON_MAX, 0);
++    if (deviceIndex < 0 || SDL_IsGameController(deviceIndex) != SDL_TRUE) {
++        if (deviceIndex >= 0) {
++            SDL_JoystickDetachVirtual(deviceIndex);
++        }
++        SDL_Log("StarshipPad analog touch controller unavailable: %s", SDL_GetError());
++        return;
++    }
++
++    sVirtualJoystick = SDL_JoystickOpen(deviceIndex);
++    if (sVirtualJoystick == nullptr) {
++        SDL_JoystickDetachVirtual(deviceIndex);
++        SDL_Log("StarshipPad analog touch controller open failed: %s", SDL_GetError());
++        return;
++    }
++
++    sVirtualJoystickInstance = SDL_JoystickInstanceID(sVirtualJoystick);
++    SDL_JoystickSetPlayerIndex(sVirtualJoystick, 0);
++    SDL_Log("StarshipPad analog touch controller attached: instance=%d",
++            static_cast<int>(sVirtualJoystickInstance));
++}
++
++static void StarshipPad_ReconcileVirtualController(void) {
++    if (sTouchControlsDesired && sTouchAnalogDesired) {
++        StarshipPad_AttachVirtualController();
++    } else {
++        StarshipPad_DetachVirtualController();
++    }
 +}
 +
 +@interface StarshipPadTouchButton : UIButton
@@ -473,7 +612,7 @@ index 00000000..2dbba76e
 +    self.inputDownTicks = SDL_GetTicks();
 +    self.inputPressed = YES;
 +    self.backgroundColor = self.pressedColor;
-+    StarshipPad_PushKey(self.scancode, YES);
++    StarshipPad_PushControl(self.scancode, YES);
 +}
 +
 +- (void)finishInputUp {
@@ -482,7 +621,7 @@ index 00000000..2dbba76e
 +    }
 +    self.inputPressed = NO;
 +    self.backgroundColor = self.idleColor;
-+    StarshipPad_PushKey(self.scancode, NO);
++    StarshipPad_PushControl(self.scancode, NO);
 +}
 +
 +- (void)inputUp {
@@ -642,6 +781,20 @@ index 00000000..2dbba76e
 +    }
 +    self.knob.center = CGPointMake(center.x + dx, center.y + dy);
 +
++    if (sTouchAnalogDesired && sVirtualJoystick != nullptr) {
++        const Sint16 axisX =
++            static_cast<Sint16>(lrint((dx / radius) * SDL_JOYSTICK_AXIS_MAX));
++        const Sint16 axisY =
++            static_cast<Sint16>(lrint((dy / radius) * SDL_JOYSTICK_AXIS_MAX));
++        SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTX, axisX);
++        SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTY, axisY);
++        [self setScancode:SDL_SCANCODE_W pressed:NO state:&_upPressed];
++        [self setScancode:SDL_SCANCODE_S pressed:NO state:&_downPressed];
++        [self setScancode:SDL_SCANCODE_A pressed:NO state:&_leftPressed];
++        [self setScancode:SDL_SCANCODE_D pressed:NO state:&_rightPressed];
++        return;
++    }
++
 +    CGFloat threshold = radius * 0.30;
 +    [self setScancode:SDL_SCANCODE_W pressed:dy < -threshold state:&_upPressed];
 +    [self setScancode:SDL_SCANCODE_S pressed:dy > threshold state:&_downPressed];
@@ -708,6 +861,10 @@ index 00000000..2dbba76e
 +    [self setScancode:SDL_SCANCODE_S pressed:NO state:&_downPressed];
 +    [self setScancode:SDL_SCANCODE_A pressed:NO state:&_leftPressed];
 +    [self setScancode:SDL_SCANCODE_D pressed:NO state:&_rightPressed];
++    if (sVirtualJoystick != nullptr) {
++        SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTX, 0);
++        SDL_JoystickSetVirtualAxis(sVirtualJoystick, SDL_CONTROLLER_AXIS_LEFTY, 0);
++    }
 +    self.knob.center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
 +}
 +
@@ -919,8 +1076,6 @@ index 00000000..2dbba76e
 +
 +static StarshipPadTouchOverlay* sTouchOverlay;
 +static StarshipPadTouchButton* sMenuButton;
-+static BOOL sTouchControlsDesired;
-+static std::atomic_bool sTouchControlsMenuVisible(false);
 +
 +static UIWindow* StarshipPad_ActiveWindow(void) {
 +    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
@@ -965,6 +1120,8 @@ index 00000000..2dbba76e
 +}
 +
 +static void StarshipPad_ApplyTouchControlsState(void) {
++    StarshipPad_ReconcileVirtualController();
++
 +    UIWindow* window = StarshipPad_ActiveWindow();
 +    if (window == nil) {
 +        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.25 * NSEC_PER_SEC)),
@@ -1002,7 +1159,16 @@ index 00000000..2dbba76e
 +
 +void StarshipPad_SetTouchControlsEnabled(int enabled) {
 +    dispatch_async(dispatch_get_main_queue(), ^{
++        [sTouchOverlay cancelAllInputs];
 +        sTouchControlsDesired = enabled != 0;
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
++
++void StarshipPad_SetTouchAnalogEnabled(int enabled) {
++    dispatch_async(dispatch_get_main_queue(), ^{
++        [sTouchOverlay cancelAllInputs];
++        sTouchAnalogDesired = enabled != 0;
 +        StarshipPad_ApplyTouchControlsState();
 +    });
 +}
@@ -1017,7 +1183,7 @@ index 00000000..2dbba76e
 +    });
 +}
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..96d34630 100644
+index bc0ccb1f..dec2b641 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
 @@ -1,6 +1,9 @@
@@ -1243,12 +1409,14 @@ index bc0ccb1f..96d34630 100644
  bool GameEngine::GenAssetFile(bool exitOnFail) {
      auto extractor = new GameExtractor();
  
-@@ -297,6 +475,10 @@ void GameEngine::Create() {
+@@ -297,6 +475,12 @@ void GameEngine::Create() {
      instance->AudioInit();
      DisplayListPatch::Run();
      GameUI::SetupGuiElements();
 +#ifdef __IOS__
 +    CVarRegisterInteger("gSettings.TouchControls", 1);
++    CVarRegisterInteger("gSettings.TouchAnalog", 1);
++    StarshipPad_SetTouchAnalogEnabled(CVarGetInteger("gSettings.TouchAnalog", 1));
 +    StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
 +#endif
  #if defined(__SWITCH__) || defined(__WIIU__)
@@ -1597,7 +1765,7 @@ index 00000000..79e9010b
 +
 +} // namespace StarshipPad
 diff --git a/src/port/ui/ImguiUI.cpp b/src/port/ui/ImguiUI.cpp
-index 5874ac2a..066cb16c 100644
+index 5874ac2a..aa34e37d 100644
 --- a/src/port/ui/ImguiUI.cpp
 +++ b/src/port/ui/ImguiUI.cpp
 @@ -14,6 +14,10 @@
@@ -1611,7 +1779,7 @@ index 5874ac2a..066cb16c 100644
  #ifdef __SWITCH__
  #include <port/switch/SwitchImpl.h>
  #include <port/switch/SwitchPerformanceProfiles.h>
-@@ -347,6 +351,15 @@ void DrawSettingsMenu(){
+@@ -347,6 +351,21 @@ void DrawSettingsMenu(){
          UIWidgets::Spacer(0);
  
          if (UIWidgets::BeginMenu("Controller")) {
@@ -1622,12 +1790,18 @@ index 5874ac2a..066cb16c 100644
 +                })) {
 +                StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
 +            }
++            if (UIWidgets::CVarCheckbox("Analog Touch", "gSettings.TouchAnalog", {
++                    .tooltip = "Uses continuous analog steering. Disable it to use the proven eight-way fallback.",
++                    .defaultValue = true,
++                })) {
++                StarshipPad_SetTouchAnalogEnabled(CVarGetInteger("gSettings.TouchAnalog", 1));
++            }
 +            UIWidgets::Spacer(0);
 +#endif
              UIWidgets::WindowButton("Controller Mapping", "gInputEditorWindow", GameUI::mInputEditorWindow);
  
              UIWidgets::Spacer(0);
-@@ -939,4 +952,4 @@ void GameMenuBar::DrawElement() {
+@@ -939,4 +958,4 @@ void GameMenuBar::DrawElement() {
  
          ImGui::EndMenuBar();
      }

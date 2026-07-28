@@ -57,26 +57,27 @@ evidence belong to StarshipPad.
 | 4 | Files import and on-device Torch extraction | Complete on Simulator; hardware gate open | `.z64` and byteswapped `.v64`, responsive extraction, boot/relaunch, voice route, time/RSS |
 | 5 | Lifecycle, audio pause, and persistence | Complete on Simulator; hardware gate open | Three cycles on one PID, config flush, simulation stall, save replay |
 | 6 | Stage-1 touch controls | Complete on Simulator; hardware grip gate open | Every required Star Fox action executable by touch alone |
-| 7 | Analog touch and physical controller matrix | In progress | CVar fallback, aim evidence, per-model controller/rumble results |
-| 8 | iOS menus, scaling, and first-run polish | Pending | iPad+iPhone visual audit and persistent settings |
+| 7 | Analog touch and physical controller matrix | Complete on Simulator; hardware matrix open | CVar fallback, aim evidence, per-model controller/rumble results |
+| 8 | iOS menus, scaling, and first-run polish | In progress | iPad+iPhone visual audit and persistent settings |
 | 9 | CI, packaging, docs, and clean replay | Pending | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
 
 ## Active gate
 
-**Phase 7 — Analog touch and physical controller matrix.**
+**Phase 8 — iOS menus, scaling, and first-run polish.**
 
 Expected:
 
-1. Add the analog virtual-controller stage behind its own CVar while keeping
-   the complete Phase 6 keyboard-event overlay as the default fallback.
-2. Prove analog steering and aiming on Simulator without regressing every
-   Stage-1 touch action.
-3. Record physical-controller detection, gameplay, reconnect, and rumble per
-   available model; leave every unavailable hardware result explicitly open.
+1. Remove or hide desktop-only and unavailable renderer choices on iOS while
+   preserving the desktop behavior outside the maintained iOS slice.
+2. Audit first-run copy, settings readability, adaptive scaling, and persistent
+   flight settings on both iPad- and iPhone-class Simulators.
+3. Keep regional voice-pack import reachable and make the invert-Y flight
+   setting easy to find.
 
 No physical-controller, rumble, signing, package, or physical-device claim may
-be inferred from Simulator touch evidence. Phase 6 remains complete only for
-the Stage-1 Simulator gate and unsigned-device compilation.
+be inferred from Simulator visual evidence. Phase 7 is complete only for the
+analog touch Simulator gate and unsigned-device compilation; its unavailable
+hardware matrix remains explicitly open.
 
 ## Evidence log
 
@@ -618,6 +619,83 @@ the Stage-1 Simulator gate and unsigned-device compilation.
   audio, a physical controller, reconnect, rumble, signing, IPA packaging, or
   CI. No physical iPhone, iPad, or controller is connected. Those hardware
   results remain open, and execution proceeds to Phase 7.
+
+### 2026-07-27 — Phase 7 analog touch passed on Simulator; hardware matrix recorded open
+
+- The touch overlay now attaches an SDL virtual game controller when both
+  `gSettings.TouchControls` and the new default-on
+  `gSettings.TouchAnalog` CVar are enabled. The stick writes continuous
+  left-X/left-Y values; Fire, Bomb, banks, Pause, Boost, Brake, View/Talk,
+  and D-pad controls write standard controller buttons or axes. Menu remains
+  on the proven F1 keyboard path. Any attach/open/write failure and an
+  explicit Analog Touch disable both preserve the complete Phase 6
+  keyboard-event fallback.
+- The diagnostics-free runtime attached the virtual controller on iPad Pro
+  11-inch (M4), iOS 18.5 Simulator. Touch Start advanced the title to the main
+  menu; virtual D-pad Down plus A selected and entered Training. This proves
+  the virtual device was consumed by LibUltraShip's ControlDeck rather than
+  merely registered with SDL.
+- A temporary diagnostic was placed at LibUltraShip's actual
+  `SDL_GameControllerGetAxis` read boundary. Three touch-stick test
+  deflections produced left-X values `8192`, `16384`, and `32767`, exactly
+  25%, 50%, and 100% of the positive SDL range. The condensed evidence log
+  `/tmp/starshippad-phase7-analog-distinct.log` has SHA-256
+  `0e55ad1ca5b47b589b155060881d45c07651ecf489aca70beea63c97138b5e3d`.
+  Because ControlDeck received three distinct magnitudes from one direction,
+  this is measurably finer than the Stage-1 eight-way/full-deflection input.
+  The diagnostic code and its temporary accessibility actions were removed
+  before the maintained patch and final products were generated.
+- Settings → Controller → Analog Touch disabled the CVar live, detached the
+  virtual controller, and left the Stage-1 keyboard path operational: touch
+  Start and A still advanced the title and selected a game path. Re-enabling
+  it live attached a new controller instance. The detach/reattach log
+  `/tmp/starshippad-phase7-toggle.log` has SHA-256
+  `5b7151aefb71a33f12fef7e5fba2bcbab165cf27ca7a2d023d8a3457a76c5def`.
+  The restored config persisted both `TouchAnalog: 1` and
+  `TouchControls: 1`. The temporary settings capture has SHA-256
+  `452fd3401926d79348af1e00e16cab59813eafefd2b8cfe1365b1dfd43831979`.
+- The final diagnostics-free Simulator process, PID `20589`, logged only
+  `StarshipPad analog touch controller attached: instance=2`; no diagnostic
+  marker remained. Final Simulator binary SHA-256:
+  `020595171292f8589b0a16fb98a4e95647f427643b6e56a978a3bbac4f20d0e4`.
+  `lipo` reports arm64; `vtool` reports platform IOSSIMULATOR, minimum 14.0,
+  SDK 26.5.
+- Physical-controller checklist on this machine:
+
+  | Model class | Pair/detect | Gameplay | Disconnect/reconnect | Rumble |
+  |---|---|---|---|---|
+  | MFi | Not available | Not tested | Not tested | Not tested |
+  | Xbox | Not available | Not tested | Not tested | Not tested |
+  | PlayStation | Not available | Not tested | Not tested | Not tested |
+
+  `xcrun xctrace list devices` reports only the local M1 Mac as a physical
+  device and no connected iPhone or iPad. Bluetooth/USB inventory SHA-256 is
+  `d42ce8f9660f2cff075767683152939c6d15013deaf2f42d113b907840721c2a`;
+  the GameController I/O Registry query was empty (SHA-256
+  `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`).
+  The compiled path still contains LUS `SDLRumbleMapping` through SDL and
+  GameController/CoreHaptics, but no physical model exists here to claim
+  pairing, reconnect, or rumble. SF64 has no gyro consumer, so no gyro work
+  was added.
+- The final Starship patch reverse-applies and has SHA-256
+  `4a4a2e770020d1092c81eac4a0849a13a8120431752b5ed6f7e736cb3edfd606`;
+  the unchanged LUS patch is
+  `0957d740b035f55fe4ce9a7f8d68cd385d196ffc594387ec3bbb638b096358b8`.
+  Disposable clones at exact Starship/LUS pins accepted both patches,
+  `git diff --check`, and reverse-apply, and contained the analog CVar and
+  virtual-controller source after apply.
+- `scripts/build-ios.sh --device` configured SDL 2.32.10 with
+  `SDL_VIRTUAL_JOYSTICK=ON`, kept `ENABLE_SCRIPTING=OFF`, and ended
+  `** BUILD SUCCEEDED **`. Final unsigned device binary SHA-256:
+  `88edac9cee7c03ccd8f3dca31fa84f22dbd2a9385873228bfad6cf457f3a2b37`.
+  `lipo` reports arm64; `vtool` reports platform IOS, minimum 14.0, SDK 26.5.
+  Device app audit and repository safety passed.
+- Boundary: this closes the analog-touch, CVar, fallback, patch, Simulator,
+  and unsigned-device compile gates. It does not claim physical-controller
+  detection or gameplay, disconnect/reconnect, rumble, physical-device
+  thumb feel, audio, signing, IPA packaging, or CI. Those hardware results
+  remain open exactly because no relevant hardware is available. Execution
+  proceeds to Phase 8.
 
 ## Open-question resolution ledger
 
