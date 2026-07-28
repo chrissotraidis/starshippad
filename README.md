@@ -1,9 +1,9 @@
 # StarshipPad
 
 <p align="center">
-  <strong>Star Fox 64 via HarbourMasters/Starship, rebuilt for iPhone and iPad.</strong><br>
-  Native Metal rendering. Complete touch flight controls. Your game data stays
-  yours.
+  <strong>Star Fox 64, rebuilt for iPhone and iPad through HarbourMasters/Starship.</strong><br>
+  Native Metal rendering. Complete touch flight controls. Files-based setup
+  with your own legally acquired game data.
 </p>
 
 <p align="center">
@@ -15,27 +15,28 @@
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
-![Original ROM-free visualization of StarshipPad's landscape iPad flight deck](docs/readme/starshippad-hero.png)
+![StarshipPad running Star Fox 64 in iPad Simulator with its complete touch flight deck](docs/readme/starshippad-hero.jpg)
 
 <p align="center">
-  <sub>Original ROM-free project artwork. Current Simulator captures appear
-  below; no ROM or extracted game asset is stored in this repository.</sub>
+  <sub>Current iPad Simulator capture. Game data was supplied locally and is
+  not included in this repository or its build artifacts.</sub>
 </p>
 
 <p align="center">
   <a href="#get-started">Build</a> ·
   <a href="#first-flight">First flight</a> ·
   <a href="#touch-flight-deck">Touch controls</a> ·
-  <a href="#current-screenshots">Screenshots</a> ·
+  <a href="#setup-and-controls">Setup views</a> ·
   <a href="#what-works">Current status</a> ·
+  <a href="docs/future-work.md">Future work</a> ·
   <a href="docs/BUILDING.md">Full build guide</a>
 </p>
 
-StarshipPad packages the complete
-[Starship](https://github.com/HarbourMasters/Starship) source port as a native
-iOS/iPadOS application. It imports a user-provided supported Star Fox 64 ROM
-through Files and adds an aim-first landscape controller derived from
-HarkinianPad's proven UIKit touch component.
+StarshipPad turns the complete
+[Starship](https://github.com/HarbourMasters/Starship) source port into a
+native iOS/iPadOS application. Build it on a Mac, import your own supported
+Star Fox 64 ROM through Files, and fly entirely by touch—no keyboard or
+separate controller required.
 
 This repository contains the mobile integration, maintained source patches,
 tests, and reproducible build scripts. It does **not** contain Star Fox 64, a
@@ -43,12 +44,12 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 
 <table>
   <tr>
-    <td width="33%"><strong>Native iOS</strong><br>Metal rendering, system
-    lifecycle integration, Files import, and the existing controller path.</td>
-    <td width="33%"><strong>Touch-complete</strong><br>Every required flight,
-    combat, menu, and wingman action is available on the glass.</td>
-    <td width="33%"><strong>Reproducible</strong><br>Pinned upstream sources,
-    maintained patches, ROM-free builds, and package audits.</td>
+    <td width="33%"><strong>Native on Apple platforms</strong><br>Metal
+    rendering, system lifecycle integration, and Files-based import.</td>
+    <td width="33%"><strong>Built around touch</strong><br>Analog aim and every
+    required flight, combat, menu, and wingman action on the glass.</td>
+    <td width="33%"><strong>Reproducible by design</strong><br>Exact upstream
+    revisions, maintained patches, ROM-free builds, and package audits.</td>
   </tr>
 </table>
 
@@ -179,15 +180,7 @@ The exact layout, SDL bindings, accessibility contract, and evidence boundary
 are documented in
 [`docs/touch-controls-design.md`](docs/touch-controls-design.md).
 
-## Current screenshots
-
-![StarshipPad Training mode running in iPad Simulator with the complete touch flight deck](docs/readme/starshippad-gameplay.jpg)
-
-<p align="center">
-  <strong>Fly without a separate controller</strong><br>
-  <sub>Training mode on iPad Simulator with analog flight, combat, D-pad,
-  C-button, Pause, and persistent menu controls visible.</sub>
-</p>
+## Setup and controls
 
 <table>
   <tr>
@@ -207,11 +200,12 @@ are documented in
   </tr>
 </table>
 
-These are current iPad Simulator captures using locally supplied game data.
-They demonstrate the rendered application and its touch/menu integration, not
+The gameplay image at the top and these interface views are current iPad
+Simulator captures. Together they show the rendered game, ROM-free first-run
+flow, touch overlay, and persistent settings access. They do not prove
 physical-device performance or control feel. No ROM, generated game archive,
-or extracted game asset is included. Capture provenance and hashes are
-recorded in [`docs/remaining-work.md`](docs/remaining-work.md).
+or extracted game asset is included. Capture provenance and hashes are in
+[`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## What works
 

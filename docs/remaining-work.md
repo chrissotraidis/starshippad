@@ -1004,6 +1004,20 @@ Those hardware gates remain explicitly open on this machine.
   is included. The images are Simulator evidence, not physical-device,
   signing, audio, performance, controller-model, rumble, or thumb-feel proof.
 
+### 2026-07-28 — README real-gameplay hero and copy pass
+
+- Replaced the generated opening illustration with the user-supplied current
+  iPad Simulator gameplay capture showing the complete touch flight deck. The
+  2732×2048 source was published as an 1800×1349 JPEG (322,895 bytes; SHA-256
+  `3cbd8142c85a1e89582be14926ccad1e9ea210a91ae88c71d2e7fa593500fe73`).
+- Tightened the README around the build → import → fly path, made the summary
+  cards benefit-led, added direct setup and future-work navigation, and removed
+  the duplicate lower gameplay image. The replaced generated hero and
+  redundant gameplay capture remain recoverable from Git history.
+- Boundary: this is a real Simulator screenshot using locally supplied game
+  data. It includes no ROM, archive, or extracted game asset and is not
+  physical-device proof.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
