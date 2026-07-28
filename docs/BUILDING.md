@@ -124,18 +124,19 @@ provisioning, stale signing material, ROM data, generated `sf64*.o2r`, or a
 
 ## Touch controls
 
-Touch controls are enabled by default. The lower-half layout keeps the stick
-and bank controls under the left hand and flight actions under the right.
-Empty overlay space passes through to the game. The persistent **•••** button
-opens the menu; opening it hides gameplay controls, and closing it restores
-them.
+Touch controls are enabled by default. The HarkinianPad-derived low-grip
+layout keeps the stick, D-pad, and Z shoulder under the left hand and the
+R/Pause, face-button, and C-action groups under the right. Empty overlay space
+passes through to the game. Every gameplay target is at least 44 points. The
+persistent **•••** button opens the menu; opening it cancels held input and
+hides gameplay controls, and closing it restores them.
 
 | Touch control | Star Fox action | Diagnostic keyboard binding |
 |---|---|---|
 | Stick | Flight/menu stick | W/A/S/D |
 | Fire | Fire/charge | X |
 | Bomb | Bomb | C |
-| L Bank / R Bank | Bank and barrel roll | Z / R |
+| Z / R | Bank left/right and barrel roll | Z / R |
 | Boost / Brake | Boost / brake | Arrow Left / Arrow Down |
 | View / Talk | Camera / C-Right answer | Arrow Up / Arrow Right |
 | Pause | Start/pause | Space or Return |
@@ -152,6 +153,9 @@ Under **Settings > Controller**:
 Touch-only mission verification must cover fire, charged fire, bomb, boost,
 brake, both banks, double-tap barrel roll, boost plus stick-down somersault,
 brake plus stick-down all-range U-turn, Talk/C-Right, pause, and menu behavior.
+The exact geometry, duplicate reachable Z, accessibility actions, and
+Simulator-versus-hardware boundary are documented in
+[`touch-controls-design.md`](touch-controls-design.md).
 
 ## Physical controller and lifecycle protocol
 

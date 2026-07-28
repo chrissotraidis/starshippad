@@ -1,86 +1,286 @@
 # StarshipPad
 
-Star Fox 64 through HarbourMasters/Starship, built as a native iPhone and iPad
-application with Metal rendering, Files-based on-device extraction, touch
-flight controls, and physical-controller support.
+<p align="center">
+  <strong>Star Fox 64 via HarbourMasters/Starship, rebuilt for iPhone and iPad.</strong><br>
+  Native Metal rendering, Files-based setup, precision touch flight controls,
+  and the existing iOS game-controller path.
+</p>
 
-StarshipPad is a source preview. The complete Simulator matrix and unsigned
-iPhoneOS build/package gate pass; physical-device signing, speaker audio, and
-controller/rumble validation remain open and are recorded explicitly in
+<p align="center">
+  <img alt="iOS and iPadOS 16 or newer" src="https://img.shields.io/badge/iOS%20%2F%20iPadOS-16%2B-0A84FF?logo=apple">
+  <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
+  <img alt="iPad Simulator tested" src="https://img.shields.io/badge/iPad%20Simulator-tested-30D158">
+  <img alt="Touch flight controls complete" src="https://img.shields.io/badge/touch-flight%20ready-64D2FF">
+  <img alt="Unsigned IPA reproducible" src="https://img.shields.io/badge/IPA-unsigned%20build-FF9F0A">
+  <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
+</p>
+
+![StarshipPad's low-grip touch flight deck for landscape iPad](docs/readme/starshippad-ipad-touch-layout.svg)
+
+StarshipPad packages the complete
+[Starship](https://github.com/HarbourMasters/Starship) source port as a native
+iOS/iPadOS application. It renders through Metal, imports a user-provided
+supported Star Fox 64 ROM through Files, and provides an aim-first landscape
+controller derived directly from HarkinianPad's proven UIKit touch component.
+
+This repository contains the mobile integration, maintained source patches,
+tests, and reproducible build scripts. It does **not** contain Star Fox 64, a
+ROM, extracted Nintendo assets, or a playable ROM-derived archive.
+
+## Install status
+
+| Option | Status | What it means |
+|---|---|---|
+| iPad Simulator | **Tested** | Best current path for development and UI validation; not physical-device proof |
+| Local signed iPhone/iPad build | **Build path available** | Supply your own Apple development team and bundle identifier |
+| Reproducible unsigned `.ipa` | **Audited locally** | Build artifact only; it cannot use the standard device-install path |
+| Public signed download | **Not available** | No official downloadable signed build is published |
+| App Store / TestFlight | **Not announced** | No listing or public beta exists |
+
+The full touch action matrix, Files import, extraction, cached relaunch,
+lifecycle persistence, iPhone layout, and iPad layout have been exercised in
+Simulator. An unsigned arm64 iPhoneOS build and ROM-free package audit also
+pass.
+
+Physical-device installation, thumb feel, real-speaker audio, controller
+models, reconnect, rumble, thermals, and performance remain open. GitHub
+Actions is currently blocked before runner allocation by the account's
+billing/spending state; this is recorded without presenting CI as green in
 [`docs/remaining-work.md`](docs/remaining-work.md).
 
-## What works
+## Get started
 
-- Native arm64 iOS/iPadOS 16+ app using Metal
-- iPhone and iPad landscape layouts with safe-area-aware menus
-- Files import for supported `.z64`, `.v64`, and `.n64` files under any name
-- Responsive on-device Torch extraction with cached relaunch
-- Regional JP/EU/Spanish/CN Voice Pack routing
-- Touch-only fire, charge, bomb, boost, brake, banks, barrel roll,
-  somersault, U-turn, wingman answer, pause, D-pad, and menu controls
-- Analog virtual touch controller with a live eight-way fallback
-- Lifecycle pause, config flush, and save persistence on Simulator
-- Reproducible ROM-free unsigned IPA packaging and repository/history audits
+You need:
 
-## Build
+- a Mac with Xcode and its command-line tools;
+- [Homebrew](https://brew.sh);
+- your own legally acquired supported Star Fox 64 ROM; and
+- an Apple ID configured in Xcode only if you want a physical-device build.
 
-You need macOS, Xcode, Homebrew, and a legally acquired supported Star Fox 64
-ROM for first run. The ROM is never a compile input.
+Install build dependencies:
 
 ```sh
 brew install cmake ninja pkgconf sdl2 glew nlohmann-json libzip \
   tinyxml2 libogg libvorbis
-
-git clone https://github.com/chrissotraidis/starshippad.git
-cd starshippad
-scripts/build-ios.sh --simulator
 ```
 
-For the unsigned device and packaging proof:
+Clone and build:
 
 ```sh
+git clone https://github.com/chrissotraidis/starshippad.git
+cd starshippad
+
+# iPad/iPhone Simulator
+scripts/build-ios.sh --simulator
+
+# Unsigned physical-device product
 scripts/build-ios.sh --device
-scripts/package-ios.sh
 ```
 
-The IPA under ignored `artifacts/` is deliberately unsigned and not
-installable on a standard device. Personal-device signing instructions,
-first-run import, touch bindings, and the full test protocol are in
-[`docs/BUILDING.md`](docs/BUILDING.md).
+For a personally signed build:
 
-## Bring your own game
+```sh
+DEVELOPMENT_TEAM=ABCDE12345 \
+BUNDLE_ID=com.yourname.starshippad \
+scripts/build-ios.sh --device
+```
 
-StarshipPad does not include a ROM, extracted Nintendo assets, or a generated
-`sf64.o2r`. Keep the app open, use Files to copy a legally acquired supported
-ROM to `On My iPhone/iPad > StarshipPad`, return to the app, and choose
-**Rescan**. Extraction stays in the app container.
+Replace `ABCDE12345` with your 10-character Apple development-team identifier
+and use a bundle identifier registered to you. See
+[`docs/BUILDING.md`](docs/BUILDING.md) for installation, signing, controller,
+and package-audit details.
 
-The bundled `starship.o2r` is different: it contains only the ROM-free,
-tracked Starship `port/` files. The build verifies its exact manifest and
-contents before packaging.
+## First flight
 
-## Reproducibility and safety
+StarshipPad never downloads or bundles game data.
 
-Starship, LibUltraShip, and Torch are frozen inputs with disabled push URLs.
-All project changes live here as scripts, maintained patches, iOS sources,
-documentation, and CI. `ENABLE_SCRIPTING` remains off.
+1. Launch StarshipPad once so iOS creates its Files-visible folder.
+2. Open **Files → On My iPad → StarshipPad**.
+3. Move your supported `.z64`, `.v64`, or `.n64` file into that folder. The
+   filename does not matter.
+4. Return to StarshipPad and choose **Rescan**.
+5. Keep the app foregrounded while it creates the private local archive.
+6. Press the on-screen Start control when the title screen appears.
+
+US inputs create the base local archive. Supported JP, EU, Spanish, and CN
+inputs are routed to the Voice Pack path instead of being treated as an
+unsupported base ROM. Extraction and generated data stay in the app
+container.
+
+## Touch flight deck
+
+StarshipPad starts with HarkinianPad's native-button, pass-through-overlay,
+safe-area, and persistent-menu mechanism, then applies Star Fox-specific
+bindings and continuous analog flight input.
+
+- **Left grip:** bank-left Z, full D-pad, and analog flight stick.
+- **Right grip:** R and Pause, A/B/Z face cluster, and the yellow C-button
+  action diamond.
+- **C diamond:** View up, Brake down, Boost left, Talk right.
+- **Menu:** `•••` remains available even when gameplay controls are hidden.
+- **Toggle:** **Settings → Controller → Touch Controls** removes or restores
+  gameplay controls without a restart.
+- **Fallback:** disabling Analog Touch preserves the complete eight-way
+  keyboard path.
+
+| Touch control | Action |
+|---|---|
+| Stick | Analog flight and aiming |
+| A | Fire; hold for charge shot |
+| B | Bomb |
+| Z / R | Bank left/right; ordinary double-tap for barrel roll |
+| C-Left / C-Down | Boost / Brake |
+| Boost + stick-down | Somersault |
+| Brake + stick-down | All-range U-turn |
+| C-Up / C-Right | View / answer wingman |
+| Start | Pause |
+| D-pad | Full game/menu D-pad input |
+| `•••` | Open or close the LibUltraShip menu |
+
+All gameplay targets are safe-area aware and at least 44 points. Opening the
+menu cancels held inputs and hides the flight deck; closing it restores the
+deck only when Touch Controls remains enabled.
+
+The exact layout, SDL bindings, accessibility contract, and evidence boundary
+are documented in
+[`docs/touch-controls-design.md`](docs/touch-controls-design.md).
+
+## What works
+
+| Area | Current result |
+|---|---|
+| Native app | arm64 iOS/iPadOS 16+ app builds through pinned Starship and LibUltraShip |
+| Rendering | Metal title/game rendering passes on iPhone and iPad Simulator |
+| Setup | Files import accepts supported `.z64`, `.v64`, and `.n64` files under any name |
+| Extraction | Threaded in-app Torch extraction, responsive progress, cached relaunch |
+| Regions | US base path plus JP/EU/Spanish/CN Voice Pack routing |
+| Touch | Every required Star Fox action, analog aim, fallback, menu lifecycle |
+| Lifecycle | Background pause, config flush, and save persistence on Simulator |
+| Controllers | Existing SDL/GameController path is compiled; physical-model matrix remains open |
+| Packaging | ROM-free port archive, unsigned IPA, forbidden-file and signed-package gates |
+
+## Supported game
+
+| Game | Engine | Status |
+|---|---|---|
+| **Star Fox 64** | [HarbourMasters/Starship](https://github.com/HarbourMasters/Starship) | Supported with a legally acquired matching ROM |
+| Other Nintendo 64 games | Other source ports | Not supported by this application |
+
+StarshipPad is a native source-port integration, not a general Nintendo 64
+emulator. Unrelated N64 ROMs cannot be substituted for supported Star Fox 64
+data.
+
+## Reproducible and ROM-free
+
+```mermaid
+flowchart LR
+    A["StarshipPad scripts"] --> B["Pinned upstream source"]
+    B --> C["Maintained iOS patches"]
+    C --> D["Native iOS app"]
+    E["Your supported ROM"] --> F["Files-visible app folder"]
+    D --> G["Private local extraction"]
+    F --> G
+    G --> H["Local archive and gameplay"]
+```
+
+The compile never reads your ROM. `scripts/build-ios.sh` fetches exact
+upstream revisions, disables their push URLs, applies the maintained patches,
+generates and audits Starship's ROM-free `starship.o2r`, and builds the app.
+Your ROM is introduced only after installation.
+
+Before publishing or sharing a package:
 
 ```sh
 scripts/check-repo-safety.sh
+scripts/package-ios.sh
+REQUIRE_SIGNED=1 scripts/package-ios.sh
 ```
 
-That gate audits the current tree and full Git history for ROMs, derived
-archives, packages, signing material, oversized files, likely credentials,
-invalid scripts, and malformed patches. The release checklist is
-[`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md); the exact permissive
-iOS link closure is [`docs/LICENSES.md`](docs/LICENSES.md).
+The last command must reject the repository's intentionally unsigned
+reproducibility artifact. A release candidate must instead contain a valid
+signature and provisioning profile while still containing no ROM or
+ROM-derived game archive.
 
-## Project boundaries
+## Frequently asked questions
 
-StarshipPad is independent of Nintendo and is not endorsed by Nintendo,
-HarbourMasters, Starship, LibUltraShip, or Torch. Upstream projects are
-read-only source inputs. Do not report StarshipPad-specific issues to those
-projects or push StarshipPad changes to their repositories.
+<details>
+<summary><strong>Where is the IPA?</strong></summary>
 
-StarshipPad-owned work is MIT licensed. Upstream and third-party components
-retain their own licenses.
+No official signed download is available. The build produces an audited
+unsigned IPA under ignored `artifacts/`; it demonstrates reproducibility but
+does not remove Apple's signing requirements.
+</details>
+
+<details>
+<summary><strong>Does this repository include Star Fox 64?</strong></summary>
+
+No. You must provide your own legally acquired supported ROM. Do not open
+issues requesting game data or download links.
+</details>
+
+<details>
+<summary><strong>Are these the HarkinianPad touch controls?</strong></summary>
+
+Yes. StarshipPad ports the same native UIKit button/stick overlay,
+safe-area/pass-through behavior, persistent menu button, and menu-visibility
+lifecycle. Its labels and bindings are adapted for Star Fox, and its stick
+adds a continuous SDL virtual-controller path for precision aiming.
+</details>
+
+<details>
+<summary><strong>Can I hide touch controls and get them back?</strong></summary>
+
+Yes. The persistent `•••` button keeps the menu reachable. Open
+**Settings → Controller** and toggle **Touch Controls**. Analog Touch can be
+disabled independently to use the eight-way fallback.
+</details>
+
+<details>
+<summary><strong>Does it support physical controllers?</strong></summary>
+
+Starship's existing SDL controller mappings and Apple's controller frameworks
+are present. No MFi, Xbox, or PlayStation model has been physically verified
+in this repository yet, so gameplay, reconnect, and rumble remain open.
+</details>
+
+<details>
+<summary><strong>Is physical-device audio confirmed?</strong></summary>
+
+No. SDL audio initialization is proven in Simulator, but speaker, headphone,
+Bluetooth, interruption, and route-change behavior require physical hardware.
+</details>
+
+## Project map
+
+| Path | Purpose |
+|---|---|
+| [`scripts/build-ios.sh`](scripts/build-ios.sh) | Complete Simulator or unsigned device build |
+| [`scripts/package-ios.sh`](scripts/package-ios.sh) | Package, signature, and forbidden-data audit |
+| [`scripts/check-repo-safety.sh`](scripts/check-repo-safety.sh) | Tree, history, patch, script, credential, and game-data gate |
+| [`patches/`](patches/) | StarshipPad changes replayed onto exact upstream revisions |
+| [`docs/BUILDING.md`](docs/BUILDING.md) | Build, signing, installation, and test guide |
+| [`docs/touch-controls-design.md`](docs/touch-controls-design.md) | Touch geometry, bindings, and interaction contract |
+| [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) | Source and package release gates |
+| [`docs/LICENSES.md`](docs/LICENSES.md) | Final permissive dependency-license inventory |
+| [`docs/remaining-work.md`](docs/remaining-work.md) | Authoritative evidence ledger and open hardware gates |
+| `ref/` | Ignored local ROM/reference area; never published |
+
+Generated sources, build directories, artifacts, ROMs, extracted assets, and
+ROM-derived archives are ignored and rejected by the safety audit.
+
+## Contributing and support
+
+Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before proposing a change and
+[`SECURITY.md`](SECURITY.md) before reporting a sensitive vulnerability.
+StarshipPad-specific issues belong in this repository, not in Starship,
+LibUltraShip, Torch, or their forks. Never attach or request game data.
+
+## Legal and acknowledgements
+
+StarshipPad is an unofficial community project. It is independent of and not
+endorsed by Nintendo, HarbourMasters, Starship, LibUltraShip, or Torch.
+Nintendo trademarks and copyrights belong to Nintendo.
+
+StarshipPad-owned work is MIT licensed. It builds on Starship, LibUltraShip,
+Torch, SDL, and their contributors; every upstream component retains its own
+license and copyright. See [`docs/LICENSES.md`](docs/LICENSES.md).

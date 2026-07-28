@@ -60,6 +60,7 @@ evidence belong to StarshipPad.
 | 7 | Analog touch and physical controller matrix | Complete on Simulator; hardware matrix open | CVar fallback, aim evidence, per-model controller/rumble results |
 | 8 | iOS menus, scaling, and first-run polish | Complete on Simulator; hardware gate open | iPad+iPhone visual audit and persistent settings |
 | 9 | CI, packaging, docs, and clean replay | Local gate complete; CI externally blocked | Fresh-checkout audited unsigned IPA and signed refusal passed; GitHub Actions did not start because of account billing/spending policy |
+| Post-9 | Low-grip iPad touch and public README parity | Local gate complete | HarkinianPad geometry parity, two-orientation iPad Simulator interaction, unsigned device link, audited IPA |
 
 ## Active gate
 
@@ -860,6 +861,87 @@ Those hardware gates remain explicitly open on this machine.
   change, rerun the published workflow; no source correction is justified by
   this pre-start failure. Physical-device, signing, controller, rumble,
   real-speaker audio, and hardware performance gates also remain open.
+
+### 2026-07-28 — Post-Phase 9 low-grip iPad touch and README gate passed locally
+
+- The maintained Starship touch component was compared directly with the
+  local-only HarkinianPad reference before editing. StarshipPad already
+  preserved the reference mechanism: UIKit controls inject SDL keyboard
+  events, touch cancellation releases inputs, the overlay passes through
+  uncovered touches, menu visibility owns overlay visibility, and a
+  persistent Menu control remains available. StarshipPad's analog
+  SDL virtual-controller stage and CVar fallback remain intact.
+- The layout now follows HarkinianPad's low-grip side rails instead of placing
+  Z, R, and Start on the top edge. The left rail contains Z, a four-way
+  D-pad, and the stick; the right rail contains R, Pause, the A/B/Z face
+  cluster, and the four C directions. Every discrete touch target is at least
+  44 points. The C buttons use N64-style directional symbols while their
+  accessibility labels retain Star Fox semantics: Boost, Brake, View, and
+  Talk.
+- Accessibility actions are semantic rather than generic. Fire, bank, boost,
+  brake, and D-pad controls expose Hold where a chord is meaningful. Only the
+  Z and R bank controls expose Double Tap. Pause, Bomb, View, Talk, and Menu
+  expose neither action. The ordinary rapid-retap path now completes a
+  pending minimum-duration release before accepting the second down event,
+  removing the prior 80 ms double-tap race.
+- The complete arm64 iPad Simulator rebuild ended `** BUILD SUCCEEDED **`,
+  passed Xcode bundle validation, and produced binary SHA-256
+  `262382fcb0e7d35b4adbf06fda5eb0fafd1d224c0e5066740efe3c64212dafc6`.
+  `lipo` reports arm64; `vtool` reports `IOSSIMULATOR`, minimum 16.0,
+  SDK 26.5.
+- The exact product was installed and launched on iPad Pro 11-inch (M4),
+  iOS 18.5 Simulator. Both landscape orientations retained safe-area
+  placement and the same 15 touch elements: persistent Menu, two Z
+  placements, R, Pause, A, B, four D-pad directions, four C directions, and
+  the control stick. Menu hid all gameplay controls and a second tap restored
+  the complete semantic tree.
+- Coordinate-level touch replay advanced Start from the title screen, moved
+  native menu selection with D-pad Down, selected Training with Fire, booted
+  the training stage, and issued a rapid two-click bank input on the Z
+  shoulder. Evidence-capture SHA-256 values are respectively
+  `fabcd5f72024c83f84f455d67b650f90f3fd42ad7e2d6c5a8138366ba7db7cfe`,
+  `74acfdc35b869f201fb33f7f696f0527906d070ad18b00637f8aef9bcc739d2c`,
+  `0fa4e07b9e6c4451124e0c65ab3a2d9afbb0bb9237bf770bfbdbbba30ca700c5`,
+  and
+  `006067ae3db7634f9344c5b31877d9f81738ce95ed13cb3d7bd01b6d9c5d9b74`.
+  The opposite-landscape title capture SHA-256 is
+  `82c29afd251afa046b968932fe1540681aa4dbc09b4ea6c983309a829b591112`.
+  Captures remain temporary because they contain game content and are not
+  repository or release artifacts.
+- The separate 13-inch M4 Simulator boot exposed an Apple system-process
+  watchdog report, not a StarshipPad crash. The report names
+  `WidgetRenderer_Default`, identifier
+  `com.apple.chrono.WidgetRenderer-Default`, in the 13-inch Simulator
+  coalition and contains no StarshipPad binary or stack frame. FrontBoard
+  killed it after a 10-second scene-update watchdog timeout while its stack
+  was in dyld and Accessibility monitoring. Report SHA-256:
+  `ec5df626de84f055ad0a6a15fa401af144f75b41e001b9f55fb6dcb9f061c391`.
+  A separate 13-inch M5 runtime reached SpringBoard, but its app-install
+  service did not respond within the bounded replay. Therefore no 13-inch
+  StarshipPad runtime result is claimed.
+- The incremental unsigned iPhoneOS build compiled the same touch source,
+  linked, and ended `** BUILD SUCCEEDED **`. Device binary SHA-256:
+  `d164991b4df71cfbf1055a33482e3473e0ec35e23ce09df4a62a95dab4535f65`;
+  `lipo` reports arm64 and `vtool` reports `IOS`, minimum 16.0, SDK 26.5.
+  The app audit and repository safety check passed. Packaging produced ignored
+  `artifacts/StarshipPad-2.0.0-unsigned.ipa`, SHA-256
+  `5736f438dc35d6167c54bc5c3ed59645af9fa66b5b1361c69ebd3f8534950975`;
+  `REQUIRE_SIGNED=1` correctly rejected it.
+- Maintained `patches/starship-ios.patch` SHA-256 is
+  `8221e2310cd8466675a7ae376aba5a4e733134e64347ba9324663bd4602bc919`.
+  It matches the complete pinned-source delta byte-for-byte. A disposable
+  checkout at `6202c443` passed apply-check, apply, `git diff --check`, and
+  reverse-apply-check. The ROM-free README hero SVG is valid XML with SHA-256
+  `c0663a1dd64a3a8eebdf3b148e4698c57429de1c9d867de2939cde3fcd0412d2`;
+  all new local Markdown links resolve.
+- Boundary: this gate proves the low-grip layout, semantic tree, basic
+  coordinate interaction through Training, both landscape orientations on an
+  11-inch iPad Simulator, an unsigned arm64 device link, package audit, and
+  signed-package refusal. It does not prove 13-inch runtime behavior,
+  physical thumb comfort, glass friction, multi-finger feel, Stage Manager,
+  signing, real-device Metal/audio/performance, controller, or rumble.
+  GitHub Actions remains externally blocked before runner allocation by the
+  existing account billing/spending condition.
 
 ## Open-question resolution ledger
 
