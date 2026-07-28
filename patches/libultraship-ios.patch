@@ -241,6 +241,20 @@ index abce1d29..5352e5fb 100644
      bool DrawAndRunGraphicsCommands(Gfx* commands, const std::unordered_map<Mtx*, MtxF>& mtxReplacements);
  
      std::weak_ptr<Interpreter> GetInterpreterWeak() const;
+diff --git a/src/graphic/Fast3D/backends/gfx_metal.cpp b/src/graphic/Fast3D/backends/gfx_metal.cpp
+index b9655237..893ed1d2 100644
+--- a/src/graphic/Fast3D/backends/gfx_metal.cpp
++++ b/src/graphic/Fast3D/backends/gfx_metal.cpp
+@@ -605,9 +605,6 @@ void GfxRenderingAPIMetal::SetupScreenFramebuffer(uint32_t width, uint32_t heigh
+ 
+     NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
+ 
+-    if (tex.texture != nullptr)
+-        tex.texture->release();
+-
+     tex.texture = mCurrentDrawable->texture();
+ 
+     MTL::RenderPassDescriptor* render_pass_descriptor = MTL::RenderPassDescriptor::renderPassDescriptor();
 diff --git a/src/graphic/Fast3D/backends/gfx_sdl.h b/src/graphic/Fast3D/backends/gfx_sdl.h
 index cbb3a2a3..49a4e779 100644
 --- a/src/graphic/Fast3D/backends/gfx_sdl.h

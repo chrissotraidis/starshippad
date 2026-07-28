@@ -58,26 +58,26 @@ evidence belong to StarshipPad.
 | 5 | Lifecycle, audio pause, and persistence | Complete on Simulator; hardware gate open | Three cycles on one PID, config flush, simulation stall, save replay |
 | 6 | Stage-1 touch controls | Complete on Simulator; hardware grip gate open | Every required Star Fox action executable by touch alone |
 | 7 | Analog touch and physical controller matrix | Complete on Simulator; hardware matrix open | CVar fallback, aim evidence, per-model controller/rumble results |
-| 8 | iOS menus, scaling, and first-run polish | In progress | iPad+iPhone visual audit and persistent settings |
-| 9 | CI, packaging, docs, and clean replay | Pending | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
+| 8 | iOS menus, scaling, and first-run polish | Complete on Simulator; hardware gate open | iPad+iPhone visual audit and persistent settings |
+| 9 | CI, packaging, docs, and clean replay | In progress | Fresh-checkout audited unsigned IPA, signed refusal, CI result |
 
 ## Active gate
 
-**Phase 8 — iOS menus, scaling, and first-run polish.**
+**Phase 9 — CI, packaging, docs, and clean replay.**
 
 Expected:
 
-1. Remove or hide desktop-only and unavailable renderer choices on iOS while
-   preserving the desktop behavior outside the maintained iOS slice.
-2. Audit first-run copy, settings readability, adaptive scaling, and persistent
-   flight settings on both iPad- and iPhone-class Simulators.
-3. Keep regional voice-pack import reachable and make the invert-Y flight
-   setting easy to find.
+1. Add the audited IPA packaging path, license closure, release checklist, and
+   reproducible build documentation.
+2. Add the repository-safety and macOS unsigned-build CI workflow, including
+   the required signed-package negative test.
+3. Replay from a fresh checkout using only tracked repository files plus an
+   ignored legal ROM under `ref/`; produce an audited unsigned IPA under
+   ignored `artifacts/` and prove `REQUIRE_SIGNED=1` rejects it.
 
-No physical-controller, rumble, signing, package, or physical-device claim may
-be inferred from Simulator visual evidence. Phase 7 is complete only for the
-analog touch Simulator gate and unsigned-device compilation; its unavailable
-hardware matrix remains explicitly open.
+No signed install, physical-device, physical-controller, rumble, or audible
+speaker result may be inferred from the unsigned package or Simulator matrix.
+Those hardware gates remain explicitly open on this machine.
 
 ## Evidence log
 
@@ -696,6 +696,77 @@ hardware matrix remains explicitly open.
   thumb feel, audio, signing, IPA packaging, or CI. Those hardware results
   remain open exactly because no relevant hardware is available. Execution
   proceeds to Phase 8.
+
+### 2026-07-27 — Phase 8 iOS polish and Metal teardown regression passed on Simulator
+
+- The iOS menu slice now presents Metal as the fixed renderer, hides the
+  DX11-only render-parallelization toggle, constrains the resolution editor to
+  the available display, exposes the console-style stretch option, and
+  offsets the menu by the UIKit safe area. Desktop behavior remains unchanged
+  outside the iOS guards.
+- The first-run instructions use the correct Files location for either
+  iPhone or iPad and explain that JP/EU/CN inputs use the Voice Pack path.
+  Settings exposes that short Voice Pack label and presents Invert Flight Y
+  Axis prominently under Controller > Flight Controls.
+- Visual targets were iPhone 16 and iPad Pro 11-inch (M4), both on the iOS
+  18.5 Simulator. The iPhone first-run view, safe-area menu, Controller view,
+  persisted invert-Y view, and final Metal renderer view were captured under
+  `/tmp`; their SHA-256 values are respectively
+  `7e4cd7bff8554588113431b6517a50f4dc39ac76a2e7094f2c0920e906f1794d`,
+  `36ae270f6e40878217c4f4b84782619391800f0b0d03d07841647015a3f6709f`,
+  `4c02577e8294ca08ac92318d07c52fb2d62bdc8705c4804461832660d91cee21`,
+  `8162b508894fd0842b95ea8124cf822f262a0bfe350ab7028af54d7d383ebcc3`,
+  and
+  `21e987f311fb673673651d1604e95f6de662a6e8ccdb9609750f566d281ee097`.
+  The iPad Voice Pack view has SHA-256
+  `47a48d08aed4babbec2c0b8c639b0cde12301be566240659155d50890b5f1a52`.
+  The responsive iPad resolution editor and advanced-settings toggle were
+  also inspected live. The stretch option is present in the iOS source path,
+  but its individual control was not isolated in a final capture.
+- Toggling Invert Flight Y Axis wrote `gInvertYAxis: 1` to the app
+  configuration. A terminate and cold relaunch retained the value and showed
+  the setting checked, proving persistence rather than only an in-process
+  state change.
+- Closing the first final iPhone build exposed a real crash instead of a
+  visual-only defect. User report SHA-256
+  `0599e1e59a0501e67c7626bfd5a0bdf5abdfd9856f313bf7f3ea084174edc460`
+  and system report
+  `StarshipPad-2026-07-27-200528.ips` SHA-256
+  `4e697e144cde6bbf1420021ff50a4c6778e58f4ae522fb3dfb3c474bc817cef1`
+  show `EXC_BAD_ACCESS` during `CAMetalDrawable` deallocation at the
+  autorelease-pool drain.
+- The first reproducible cause was pinned LibUltraShip manually releasing
+  `tex.texture` returned from `CAMetalDrawable`; CoreAnimation owns that
+  texture. Upstream LibUltraShip commit
+  `8ffa903c703ac0f48c15a3e2fdc31e58e11c31e4` fixes the same macOS Metal
+  resize/teardown race by deleting those exact three release lines.
+  StarshipPad backported only that deletion.
+- The fixed iPad build was closed and observed for 40 seconds without a new
+  StarshipPad crash report. A fresh launch then completed three
+  background/foreground cycles on one PID, `37347`, with no crash or PID
+  replacement. This is a focused teardown/lifecycle regression replay; the
+  stronger simulation-stall, config-flush, and save evidence remains the
+  Phase 5 record.
+- Final maintained patch SHA-256 values are
+  `patches/libultraship-ios.patch`
+  `8c2b624fde1066fbb0f9262fbfb9aef7a2bd006226c0afb8ca44fee501a4708e`
+  and `patches/starship-ios.patch`
+  `a5250d06fa9fa31360625a5e055858e37457dc633084fc8fe2f43920f71af27d`.
+  Disposable checkouts at the exact pins accepted both patches, passed
+  `git diff --check`, matched the maintained source deltas, and accepted
+  reverse-apply checks.
+- Final arm64 Simulator binary SHA-256:
+  `5071b2e4c8134b5119be72ba307e6d1c59f0ff6bf1c51a866099c700019b66e2`.
+  Final unsigned arm64 iPhoneOS binary SHA-256:
+  `e200bd2c5da09f2114cd7ef4f407ad67f4548d69ea9db1ad81461ca4b07632f2`.
+  The full unsigned device build ended `** BUILD SUCCEEDED **`, the device
+  app audit passed, and repository safety passed before the gate commit.
+- Boundary: Phase 8 proves iPhone/iPad Simulator layout, menu availability,
+  setting persistence, and the focused Metal teardown repair, plus an
+  unsigned device build and audit. No physical iPhone/iPad visual audit,
+  Stage Manager behavior, real-device Metal teardown, signing, controller,
+  rumble, or speaker-audio result is claimed. Those hardware gates remain
+  open. Execution proceeds to Phase 9.
 
 ## Open-question resolution ledger
 

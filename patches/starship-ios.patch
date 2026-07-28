@@ -347,10 +347,10 @@ index 00000000..1b3913c4
 +</plist>
 diff --git a/ios/StarshipTouchControls.h b/ios/StarshipTouchControls.h
 new file mode 100644
-index 00000000..f6365e0a
+index 00000000..e9816ffb
 --- /dev/null
 +++ b/ios/StarshipTouchControls.h
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,15 @@
 +#pragma once
 +
 +#ifdef __cplusplus
@@ -358,6 +358,7 @@ index 00000000..f6365e0a
 +#endif
 +
 +int StarshipPad_TouchControlsAvailable(void);
++float StarshipPad_GetSafeAreaLeft(void);
 +void StarshipPad_SetTouchControlsEnabled(int enabled);
 +void StarshipPad_SetTouchAnalogEnabled(int enabled);
 +void StarshipPad_SetTouchControlsMenuVisible(int visible);
@@ -367,10 +368,10 @@ index 00000000..f6365e0a
 +#endif
 diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
 new file mode 100644
-index 00000000..da02bdca
+index 00000000..c6cbf80e
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,811 @@
+@@ -0,0 +1,816 @@
 +#import <UIKit/UIKit.h>
 +
 +#include <atomic>
@@ -1157,6 +1158,11 @@ index 00000000..da02bdca
 +    return 1;
 +}
 +
++float StarshipPad_GetSafeAreaLeft(void) {
++    UIWindow* window = StarshipPad_ActiveWindow();
++    return window == nil ? 0.0f : static_cast<float>(window.safeAreaInsets.left);
++}
++
 +void StarshipPad_SetTouchControlsEnabled(int enabled) {
 +    dispatch_async(dispatch_get_main_queue(), ^{
 +        [sTouchOverlay cancelAllInputs];
@@ -1183,7 +1189,7 @@ index 00000000..da02bdca
 +    });
 +}
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..dec2b641 100644
+index bc0ccb1f..19444cec 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
 @@ -1,6 +1,9 @@
@@ -1219,6 +1225,15 @@ index bc0ccb1f..dec2b641 100644
          if (ShowYesNoBox("Starship - Asset Extraction", "Please provide a Starfox 64 ROM.\n\nSupported Versions:\nUS 1.0\nUS 1.1\n\nAssets will be extracted into an O2R file.") == IDYES) {
              if(!GenAssetFile()){
                  ShowMessage("Error", "An error occured, no O2R file was generated.\n\nExiting...");
+@@ -90,7 +99,7 @@ GameEngine::GameEngine() {
+                 archiveFiles.push_back(main_path);
+             }
+ 
+-            if (ShowYesNoBox("Extraction Complete", "ROM Extracted. Extract another?\n\n Starship supports JP and EU ROMs for voice replacement.\n Voice replacement ROM assets can also be installed in:\n Settings->Language->Install JP/EU Audio") == IDYES) {
++            if (ShowYesNoBox("Extraction Complete", "ROM Extracted. Extract another?\n\n Starship supports JP, EU, and CN ROMs for voice replacement.\n Voice replacement ROM assets can also be installed in:\n Settings->Language->Voice Pack") == IDYES) {
+                 if(!GenAssetFile()){
+                     ShowMessage("Error", "An error occured, no O2R file was generated.");
+                 }
 @@ -99,6 +108,7 @@ GameEngine::GameEngine() {
              exit(1);
          }
@@ -1382,7 +1397,7 @@ index bc0ccb1f..dec2b641 100644
 +        } else {
 +            ImGui::TextWrapped("Open Files and copy any supported .z64, .n64, or .v64 file into:");
 +            ImGui::Spacing();
-+            ImGui::TextUnformatted("On My iPad > StarshipPad");
++            ImGui::TextWrapped("the StarshipPad folder under On My iPhone or On My iPad");
 +            ImGui::Spacing();
 +            ImGui::TextWrapped("Return here and choose Rescan. The filename does not matter.");
 +            if (!statusMessage.empty()) {
@@ -1765,7 +1780,7 @@ index 00000000..79e9010b
 +
 +} // namespace StarshipPad
 diff --git a/src/port/ui/ImguiUI.cpp b/src/port/ui/ImguiUI.cpp
-index 5874ac2a..aa34e37d 100644
+index 5874ac2a..2eec8fe9 100644
 --- a/src/port/ui/ImguiUI.cpp
 +++ b/src/port/ui/ImguiUI.cpp
 @@ -14,6 +14,10 @@
@@ -1779,7 +1794,23 @@ index 5874ac2a..aa34e37d 100644
  #ifdef __SWITCH__
  #include <port/switch/SwitchImpl.h>
  #include <port/switch/SwitchPerformanceProfiles.h>
-@@ -347,6 +351,21 @@ void DrawSettingsMenu(){
+@@ -333,12 +337,13 @@ void DrawSettingsMenu(){
+                             };
+                     }
+                 } else {
+-                    if (UIWidgets::Button("Install JP/EU Audio")) {
++                    if (UIWidgets::Button("Voice Pack")) {
+                         if (GameEngine::GenAssetFile(false)){
+-                            GameEngine::ShowMessage("Success", "Audio assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
++                            GameEngine::ShowMessage("Success", "Voice-pack assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
+                         }
+                         Ship::Context::GetInstance()->GetWindow()->Close();
+                     }
++                    UIWidgets::Tooltip("Import a supported JP, EU, or CN ROM for replacement voices.");
+                 }
+                 ImGui::EndMenu();
+             }
+@@ -347,6 +352,27 @@ void DrawSettingsMenu(){
          UIWidgets::Spacer(0);
  
          if (UIWidgets::BeginMenu("Controller")) {
@@ -1798,13 +1829,107 @@ index 5874ac2a..aa34e37d 100644
 +            }
 +            UIWidgets::Spacer(0);
 +#endif
++            ImGui::TextUnformatted("Flight Controls");
++            UIWidgets::CVarCheckbox("Invert Flight Y Axis", "gInvertYAxis",{
++                .tooltip = "Inverts the vertical steering axis for flight"
++            });
++
++            UIWidgets::Spacer(0);
              UIWidgets::WindowButton("Controller Mapping", "gInputEditorWindow", GameUI::mInputEditorWindow);
  
              UIWidgets::Spacer(0);
-@@ -939,4 +958,4 @@ void GameMenuBar::DrawElement() {
+@@ -355,10 +381,6 @@ void DrawSettingsMenu(){
+                 .tooltip = "Allows controller navigation of the SOH menu bar (Settings, Enhancements,...)\nCAUTION: This will disable game inputs while the menubar is visible.\n\nD-pad to move between items, A to select, and X to grab focus on the menu bar"
+             });
+ 
+-            UIWidgets::CVarCheckbox("Invert Y Axis", "gInvertYAxis",{
+-                .tooltip = "Inverts the Y axis for controlling vehicles"
+-            });
+-
+             ImGui::EndMenu();
+         }
+ 
+@@ -462,6 +484,7 @@ void DrawSettingsMenu(){
+         UIWidgets::PaddedEnhancementCheckbox("Match Refresh Rate", "gMatchRefreshRate", true, false);
+         UIWidgets::Tooltip("Matches interpolation value to the refresh rate of your display.");
+ 
++#ifndef __IOS__
+         if (Ship::Context::GetInstance()->GetWindow()->GetWindowBackend() == Ship::WindowBackend::FAST3D_DXGI_DX11) {
+             UIWidgets::PaddedEnhancementCheckbox("Render parallelization","gRenderParallelization", true, false, {}, {}, {}, true);
+             UIWidgets::Tooltip(
+@@ -470,6 +493,7 @@ void DrawSettingsMenu(){
+                 "or if you notice other performance problems.\n"
+                 "Adds up to one frame of input lag under certain scenarios.");
+         }
++#endif
+       
+         UIWidgets::PaddedSeparator(true, true, 3.0f, 3.0f);
+ 
+@@ -479,6 +503,10 @@ void DrawSettingsMenu(){
+                 { Ship::WindowBackend::FAST3D_SDL_METAL, "Metal" }
+         };
+ 
++#ifdef __IOS__
++        ImGui::TextUnformatted("Renderer API");
++        ImGui::TextUnformatted("Metal");
++#else
+         ImGui::Text("Renderer API (Needs reload)");
+         Ship::WindowBackend runningWindowBackend = Ship::Context::GetInstance()->GetWindow()->GetWindowBackend();
+         Ship::WindowBackend configWindowBackend;
+@@ -507,6 +535,7 @@ void DrawSettingsMenu(){
+         if (Ship::Context::GetInstance()->GetWindow()->GetAvailableWindowBackends()->size() <= 1) {
+             UIWidgets::ReEnableComponent("");
+         }
++#endif
+ 
+         if (Ship::Context::GetInstance()->GetWindow()->CanDisableVerticalSync()) {
+             UIWidgets::PaddedEnhancementCheckbox("Enable Vsync", "gVsyncEnabled", true, false, false, "", UIWidgets::CheckboxGraphics::Cross, true);
+@@ -915,6 +944,9 @@ void DrawDebugMenu() {
+ 
+ void GameMenuBar::DrawElement() {
+     if(ImGui::BeginMenuBar()){
++#ifdef __IOS__
++        ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), StarshipPad_GetSafeAreaLeft()));
++#endif
+         DrawMenuBarIcon();
+ 
+         DrawGameMenu();
+@@ -939,4 +971,4 @@ void GameMenuBar::DrawElement() {
  
          ImGui::EndMenuBar();
      }
 -}
 \ No newline at end of file
 +}
+diff --git a/src/port/ui/ResolutionEditor.cpp b/src/port/ui/ResolutionEditor.cpp
+index cc78edaf..739ff687 100644
+--- a/src/port/ui/ResolutionEditor.cpp
++++ b/src/port/ui/ResolutionEditor.cpp
+@@ -53,7 +53,10 @@ namespace AdvancedResolutionSettings {
+     }
+ 
+     void AdvancedResolutionSettingsWindow::DrawElement() {
+-        ImGui::SetNextWindowSize(ImVec2(497, 532), ImGuiCond_FirstUseEver);
++        const ImGuiIO& io = ImGui::GetIO();
++        ImGui::SetNextWindowSize(
++            ImVec2(std::min(497.0f, io.DisplaySize.x - 24.0f), std::min(532.0f, io.DisplaySize.y - 24.0f)),
++            ImGuiCond_FirstUseEver);
+         if (ImGui::Begin("Advanced Resolution Settings", &mIsVisible)) {
+             // Initialise update flags.
+             bool update[sizeof(setting)];
+@@ -287,7 +290,7 @@ namespace AdvancedResolutionSettings {
+             // Collapsible panel for additional settings
+             if (ImGui::CollapsingHeader("Additional Settings")) {
+                 UIWidgets::Spacer(0);
+-#if defined(__SWITCH__) || defined(__WIIU__)
++#if defined(__SWITCH__) || defined(__WIIU__) || defined(__IOS__)
+                 // Disable aspect correction, stretching the framebuffer to fill the viewport.
+             // This option is only really needed on systems limited to 16:9 TV resolutions, such as consoles.
+             // The associated CVar is still functional on PC platforms if you want to use it though.
+@@ -421,4 +424,4 @@ namespace AdvancedResolutionSettings {
+                 return true;
+         return false;
+     }
+-} // namespace AdvancedResolutionSettings
+\ No newline at end of file
++} // namespace AdvancedResolutionSettings
