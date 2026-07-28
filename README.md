@@ -18,14 +18,15 @@
 ![Original ROM-free visualization of StarshipPad's landscape iPad flight deck](docs/readme/starshippad-hero.png)
 
 <p align="center">
-  <sub>Original ROM-free project artwork. No game screenshot or Nintendo-owned
-  asset is stored in this repository.</sub>
+  <sub>Original ROM-free project artwork. Current Simulator captures appear
+  below; no ROM or extracted game asset is stored in this repository.</sub>
 </p>
 
 <p align="center">
   <a href="#get-started">Build</a> ·
   <a href="#first-flight">First flight</a> ·
   <a href="#touch-flight-deck">Touch controls</a> ·
+  <a href="#current-screenshots">Screenshots</a> ·
   <a href="#what-works">Current status</a> ·
   <a href="docs/BUILDING.md">Full build guide</a>
 </p>
@@ -110,7 +111,15 @@ scripts/build-ios.sh --device
 ```
 
 Replace `ABCDE12345` with your 10-character Apple development-team identifier
-and use a bundle identifier registered to you. See
+and use a bundle identifier registered to you. The Simulator and device
+products are written to:
+
+```text
+build-ios-sim/Release-iphonesimulator/StarshipPad.app
+build-ios/Release-iphoneos/StarshipPad.app
+```
+
+See
 [`docs/BUILDING.md`](docs/BUILDING.md) for installation, signing, controller,
 and package-audit details.
 
@@ -170,10 +179,39 @@ The exact layout, SDL bindings, accessibility contract, and evidence boundary
 are documented in
 [`docs/touch-controls-design.md`](docs/touch-controls-design.md).
 
-Simulator captures containing locally supplied game data are intentionally
-kept out of Git and release artifacts. The visual above is original project
-artwork; runtime evidence and its SHA-256 hashes are recorded in
-[`docs/remaining-work.md`](docs/remaining-work.md).
+## Current screenshots
+
+![StarshipPad Training mode running in iPad Simulator with the complete touch flight deck](docs/readme/starshippad-gameplay.jpg)
+
+<p align="center">
+  <strong>Fly without a separate controller</strong><br>
+  <sub>Training mode on iPad Simulator with analog flight, combat, D-pad,
+  C-button, Pause, and persistent menu controls visible.</sub>
+</p>
+
+<table>
+  <tr>
+    <td width="50%">
+      <img src="docs/readme/starshippad-first-run.png" alt="StarshipPad ROM-free first-run setup screen in iPad Simulator">
+    </td>
+    <td width="50%">
+      <img src="docs/readme/starshippad-controller.jpg" alt="StarshipPad Controller settings showing Touch Controls and Analog Touch in iPad Simulator">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>Bring your own game</strong><br>The clean
+    first-run screen directs you to the Files-visible StarshipPad folder.</td>
+    <td align="center"><strong>Tune it while running</strong><br>Touch,
+    analog aim, invert-Y, and controller mapping remain available in the
+    persistent menu.</td>
+  </tr>
+</table>
+
+These are current iPad Simulator captures using locally supplied game data.
+They demonstrate the rendered application and its touch/menu integration, not
+physical-device performance or control feel. No ROM, generated game archive,
+or extracted game asset is included. Capture provenance and hashes are
+recorded in [`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## What works
 
@@ -293,6 +331,7 @@ Bluetooth, interruption, and route-change behavior require physical hardware.
 | [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) | Source and package release gates |
 | [`docs/LICENSES.md`](docs/LICENSES.md) | Final permissive dependency-license inventory |
 | [`docs/remaining-work.md`](docs/remaining-work.md) | Authoritative evidence ledger and open hardware gates |
+| [`docs/future-work.md`](docs/future-work.md) | Unimplemented Voice Pack, controller, and visual-pack follow-ups |
 | `ref/` | Ignored local ROM/reference area; never published |
 
 Generated sources, build directories, artifacts, ROMs, extracted assets, and

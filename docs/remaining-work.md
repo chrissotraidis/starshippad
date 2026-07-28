@@ -982,6 +982,28 @@ Those hardware gates remain explicitly open on this machine.
   rumble, or touch-runtime claim. The generated hero is illustrative and is
   labeled as such; it is not runtime evidence.
 
+### 2026-07-28 — README runtime screenshot set captured
+
+- The current Simulator app was launched on an iPad Pro 13-inch (M5) running
+  iOS 26.5 with the existing local archive. On-screen Start, D-pad, and Fire
+  input reached Training mode; the persistent menu opened
+  **Settings → Controller** with Touch Controls and Analog Touch enabled.
+- A clean install of the same app on an iPad Pro 11-inch (M5) running iOS 26.5
+  displayed the ROM-free first-run setup screen without importing game data.
+- Three curated README images were captured and reduced to a maximum
+  1,800-pixel edge:
+  `docs/readme/starshippad-gameplay.jpg`, 342,821 bytes, SHA-256
+  `7a6b74617b4a8f8bb8450477cfbdb547f3e173e72e8b48b0cb9c30a831d1aced`;
+  `docs/readme/starshippad-first-run.png`, 169,853 bytes, SHA-256
+  `1e5cb20d286488adb315bf507c79cf7dd4d4a704c76553dc51fcb7acec499d5c`;
+  and `docs/readme/starshippad-controller.jpg`, 333,058 bytes, SHA-256
+  `60df23de256df9cef9f882b45fef105136816610114a89b788cc2cab1495d41c`.
+- This supersedes the earlier README-only decision to keep every gameplay
+  capture out of Git, but only for these three curated documentation images.
+  No ROM, generated game archive, extracted game asset, log, or local filename
+  is included. The images are Simulator evidence, not physical-device,
+  signing, audio, performance, controller-model, rumble, or thumb-feel proof.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
