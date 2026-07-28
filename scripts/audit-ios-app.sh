@@ -21,8 +21,8 @@ fi
 build_metadata="$(xcrun vtool -show-build "$APP/StarshipPad")"
 grep -Eq 'platform +IOS$' <<< "$build_metadata" ||
     fail "product is not an iPhoneOS binary"
-grep -Eq 'minos +14\.0$' <<< "$build_metadata" ||
-    fail "product does not declare iOS 14.0"
+grep -Eq 'minos +16\.0$' <<< "$build_metadata" ||
+    fail "product does not declare iOS 16.0"
 xcrun lipo -info "$APP/StarshipPad" | grep -Eq 'architecture: arm64$' ||
     fail "product is not arm64-only"
 

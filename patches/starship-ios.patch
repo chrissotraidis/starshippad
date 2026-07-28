@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e7d0e797..7845ea87 100644
+index e7d0e797..ade018c9 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,8 +24,13 @@ if(APPLE)
@@ -9,7 +9,7 @@ index e7d0e797..7845ea87 100644
 -# Set the minimum version of CMake and the deployment target for macOS
 +# Set the minimum deployment target for the selected Apple platform.
 +if(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-+set(DEPLOYMENT_TARGET "14.0" CACHE STRING "Minimum iOS deployment version")
++    set(DEPLOYMENT_TARGET "16.0" CACHE STRING "Minimum iOS deployment version")
 +set(CMAKE_OSX_DEPLOYMENT_TARGET "${DEPLOYMENT_TARGET}" CACHE STRING "Minimum iOS deployment version" FORCE)
 +else()
  set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum OS X deployment version")
@@ -73,7 +73,21 @@ index e7d0e797..7845ea87 100644
      )
  else()
      add_executable(${PROJECT_NAME} ${ALL_FILES})
-@@ -247,14 +259,12 @@ include_directories(
+@@ -220,7 +232,12 @@ endif()
+ 
+ #=================== SSE2NEON ===================
+ set(SSE2NEON_DIR ${CMAKE_BINARY_DIR}/_deps/sse2neon)
+-file(DOWNLOAD "https://raw.githubusercontent.com/DLTcollab/sse2neon/refs/heads/master/sse2neon.h" "${SSE2NEON_DIR}/sse2neon.h")
++file(DOWNLOAD
++    "https://raw.githubusercontent.com/DLTcollab/sse2neon/3b70b3727edc9a151c113814129258c3423a771c/sse2neon.h"
++    "${SSE2NEON_DIR}/sse2neon.h"
++    EXPECTED_HASH
++        SHA256=fab5e1be095ce8db9d2ab0c1fe0b2c6f2a34657b43ce83688e8c84224806df38
++)
+ 
+ include_directories(${SSE2NEON_DIR})
+ 
+@@ -247,14 +264,12 @@ include_directories(
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/menu
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils/binarytools
@@ -88,7 +102,7 @@ index e7d0e797..7845ea87 100644
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/libultra
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/bridge
-@@ -274,6 +284,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
+@@ -274,6 +289,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
  add_dependencies(${PROJECT_NAME} libultraship)
  target_link_libraries(${PROJECT_NAME} PRIVATE libultraship)
  
@@ -99,7 +113,7 @@ index e7d0e797..7845ea87 100644
  if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
      target_compile_definitions(${PROJECT_NAME} PRIVATE
          "$<$<CONFIG:Debug>:"
-@@ -355,6 +369,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+@@ -355,6 +374,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
      target_include_directories(${PROJECT_NAME} PRIVATE
          ${DEVKITPRO}/portlibs/wiiu/include/
      )
@@ -118,7 +132,7 @@ index e7d0e797..7845ea87 100644
  else()
      find_package(Ogg REQUIRED)
      find_package(Vorbis REQUIRED)
-@@ -605,11 +631,18 @@ add_custom_command(
+@@ -605,11 +636,18 @@ add_custom_command(
  )
  
  if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
@@ -138,7 +152,7 @@ index e7d0e797..7845ea87 100644
  )
  ExternalProject_Get_Property(TorchExternal install_dir)
  if (MSVC)
-@@ -632,9 +665,56 @@ add_custom_target(
+@@ -632,9 +670,56 @@ add_custom_target(
      COMMAND ${TORCH_EXECUTABLE} pack port starship.o2r o2r
      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/starship.o2r" "${CMAKE_BINARY_DIR}/starship.o2r"
  )
@@ -196,7 +210,7 @@ index e7d0e797..7845ea87 100644
  
  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
    install(FILES "${CMAKE_BINARY_DIR}/starship.o2r" DESTINATION . COMPONENT ${PROJECT_NAME})
-@@ -685,5 +765,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+@@ -685,5 +770,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
      set(CPACK_GENERATOR "Bundle")
  endif()
  

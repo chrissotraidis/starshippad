@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE="$ROOT/sources/Starship"
-DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-14.0}"
+DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-16.0}"
 BUNDLE_ID="${BUNDLE_ID:-com.example.starshippad}"
 IOS_PLATFORM="${IOS_PLATFORM:-OS64}"
 BUILD_DIR="$ROOT/build-ios"

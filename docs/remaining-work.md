@@ -24,8 +24,8 @@ passing intermediate build or runtime gate is progress, not completion.
   requests are read-only inputs.
 - Upstream source inputs are pinned, disposable, and push-disabled.
 - Keep `ENABLE_SCRIPTING` off. Never adopt a runtime-codegen path.
-- Keep engine-layer and application-layer changes separate in maintained
-  patches.
+- Keep engine-layer, application-layer, and build-tool corrections separate
+  in maintained patches.
 - Treat local, CI, Simulator, physical-device, signing, audio, touch, and
   controller evidence as separate gates.
 - Make the smallest maintainable change for the first reproducible failure,
@@ -65,15 +65,13 @@ evidence belong to StarshipPad.
 
 **Phase 9 — CI, packaging, docs, and clean replay.**
 
-Expected:
+Local clean-replay and packaging evidence has passed. Publication and the
+remote GitHub Actions result are the remaining executable gate:
 
-1. Add the audited IPA packaging path, license closure, release checklist, and
-   reproducible build documentation.
-2. Add the repository-safety and macOS unsigned-build CI workflow, including
-   the required signed-package negative test.
-3. Replay from a fresh checkout using only tracked repository files plus an
-   ignored legal ROM under `ref/`; produce an audited unsigned IPA under
-   ignored `artifacts/` and prove `REQUIRE_SIGNED=1` rejects it.
+1. Commit and push the audited IPA packaging path, license closure, release
+   checklist, reproducible build documentation, and CI workflow.
+2. Require the published workflow to pass repository safety, the macOS
+   unsigned build/package, and the signed-package negative test.
 
 No signed install, physical-device, physical-controller, rumble, or audible
 speaker result may be inferred from the unsigned package or Simulator matrix.
@@ -768,6 +766,75 @@ Those hardware gates remain explicitly open on this machine.
   rumble, or speaker-audio result is claimed. Those hardware gates remain
   open. Execution proceeds to Phase 9.
 
+### 2026-07-27 — Phase 9 local clean replay and audited unsigned IPA passed
+
+- Release tooling now includes `scripts/package-ios.sh`,
+  `.github/workflows/ios-build.yml`, MIT project licensing, third-party
+  license inventory, clean-checkout build instructions, a release checklist,
+  and a visitor-facing README. Packaging re-audits the device app and nested
+  archive, requires the audited ROM-free `starship.o2r`, refuses forbidden
+  files or stale signing material, and emits only under ignored
+  `artifacts/`.
+- Q8 is resolved conservatively: StarshipPad's supported deployment floor is
+  iOS/iPadOS 16.0. No iOS 14 or 15 hardware is available for install
+  evidence, and the pinned `metal-cpp` package itself targets iOS 16.
+  Configure, audit, workflow, and documentation now agree on 16.0. This is an
+  explicit supported-floor decision, not a claim that older binaries could
+  never run.
+- The pinned Starship source referenced moving `sse2neon` `master`. The
+  maintained application patch freezes it to upstream commit
+  `3b70b3727edc9a151c113814129258c3423a771c`, with expected archive SHA-256
+  `fab5e1be1994596f28a71f1c991036db280b8d61a1f75895e8a3101dcde6df38`.
+- The first fresh-checkout replay failed in host `GeneratePortO2R`: pinned
+  Torch fetched spdlog 1.14.1 and Xcode 26 reproduced the Phase 0
+  `consteval` compiler failure. A previously warm Torch checkout had masked
+  that host-build dependency. The smallest correction is the separate
+  `patches/torch-ios.patch`, changing only Torch's spdlog pin to v1.16.0.
+  The patch has SHA-256
+  `262f05a9e4c16169af942f4a951f20d586f13dd16cd6eb1fb09bb0e7707739e1`;
+  no Torch runtime or extraction behavior was changed.
+- The authoritative clean replay used temporary candidate commit
+  `8c5de59ce0b90eadaa60f3c06c6740d4307f8c1c`, tree
+  `8a72de7d8f8a89fcd03e1c82ee32521659e031bb`, in clean checkout
+  `/tmp/starshippad-phase9-replay.YPc02C/starshippad`. Its only untracked
+  input was an ignored, legally acquired ROM at `ref/clean-replay.v64`.
+  Repository safety passed before and after the build.
+- Bootstrap resolved the exact Starship, LibUltraShip, and Torch pins; all
+  three push URLs were `disabled://starshippad-upstream-input`. The LUS,
+  Starship, and Torch patches applied cleanly, their resulting source trees
+  passed `git diff --check`, and each patch accepted a reverse-apply check.
+- Host `GeneratePortO2R` produced the exact audited 13-entry, ROM-free
+  manifest. Clean iPhoneOS configure used target triple
+  `arm64-apple-ios16.0`, SDK 26.5, and correctly reported `memcpy_s` absent.
+  The full device build ended `** BUILD SUCCEEDED **` and included Xcode
+  bundle validation. Build log SHA-256:
+  `41812ba6c2d5cad6d6938da63f3d962ec3a0a5474ce8f6032761fa4c1bdb63fc`.
+  Measured wall time was 1,768 seconds (29 minutes 28 seconds).
+- Clean product evidence: unsigned arm64 app binary SHA-256
+  `092268fa79abc36f448437997089d612df28ae9cdf64debae669c92c7665082d`;
+  bundled audited `starship.o2r` SHA-256
+  `fd44eb50120fb016e66cf90ea04c3541614420b7ba43e4e3eaee9ecc652ffa13`;
+  final ignored
+  `artifacts/StarshipPad-2.0.0-unsigned.ipa` SHA-256
+  `3d8a461ae8e9c418fd286c243300ef498fa8384d2ab190ed950e88de7b23b6ad`.
+  ZIP integrity passed across 125 entries.
+- `REQUIRE_SIGNED=1` rejected that unsigned product with exit status 1; its
+  log SHA-256 is
+  `6974259358c68853127045030ca8f78ed7258e188daef49a49814bc0a732ca7c`.
+  This is the required negative test, not a signed-package result.
+- Final maintained patch SHA-256 values at this local gate are LUS
+  `8c2b624fde1066fbb0f9262fbfb9aef7a2bd006226c0afb8ca44fee501a4708e`,
+  Torch
+  `262f05a9e4c16169af942f4a951f20d586f13dd16cd6eb1fb09bb0e7707739e1`,
+  and Starship
+  `264e1484ddac6f70019be92970cbc5f6037bafeb66053d008f54a0c635340b77`.
+- Boundary: the clean local build, package, signed refusal, patch
+  reversibility, and safety gates are proven. Remote CI has not yet run for
+  this unpublished tree, so Phase 9 remains in progress. The IPA is unsigned
+  and is not installable through the standard device path. No physical
+  iPhone/iPad install, signing-team, controller, rumble, real-speaker audio,
+  or hardware performance result is claimed.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
@@ -779,7 +846,7 @@ Those hardware gates remain explicitly open on this machine.
 | Q5 D-pad use | 6 | Resolved | D-pad is executable in HUD/effects, turret, map, options, and system code; all four directions are included |
 | Q6 libpng in iOS closure | 2 | Resolved | Configure and final link closure contain no libpng |
 | Q7 audio producer sleep | 5 | Resolved | Source gate plus background stack sample captured the worker in `__psynch_cvwait` for all 770 samples |
-| Q8 true iOS floor | 9 | Open | Device/install evidence or explicit floor decision |
+| Q8 true iOS floor | 9 | Resolved | Explicit supported floor raised to iOS/iPadOS 16.0; clean binary reports minos 16.0; no older-device install claim |
 | Q9 LUS pin versus upstream squash | 0 | Resolved | Identical stable patch ID `b08ae8b1`; different parent trees documented |
 | Q10 Torch progress backport | 4 | Resolved | Exact commit conflicts across a large Companion rewrite; approved indeterminate spinner fallback used |
 | Q11 empty keyboard defaults | 6 | Resolved | Empty maps populate built-ins; clean live config used them; Return added as a second Start default |

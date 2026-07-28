@@ -5,8 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STARSHIP="$ROOT/sources/Starship"
 LUS="$STARSHIP/libultraship"
+TORCH="$STARSHIP/tools/Torch"
 
-for tree in "$STARSHIP" "$LUS"; do
+for tree in "$STARSHIP" "$LUS" "$TORCH"; do
     expected_root="$(cd "$tree" 2>/dev/null && pwd -P || true)"
     actual_root="$(git -C "$tree" rev-parse --show-toplevel 2>/dev/null || true)"
     if [ "$actual_root" != "$expected_root" ]; then
@@ -32,6 +33,7 @@ apply_patch() {
 }
 
 apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch"
+apply_patch "$TORCH" "$ROOT/patches/torch-ios.patch"
 
 if [ -s "$ROOT/patches/starship-ios.patch" ]; then
     apply_patch "$STARSHIP" "$ROOT/patches/starship-ios.patch"
