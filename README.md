@@ -1,7 +1,7 @@
 # StarshipPad
 
 <p align="center">
-  <strong>Starship, adapted for iPhone and iPad as StarshipPad.</strong><br>
+  <strong>Starship (Star Fox 64), adapted for iPhone and iPad as StarshipPad.</strong><br>
   Native Metal rendering, touch flight controls, native controller input,
   Files-based setup, and separate experimental phone and tablet layouts.
 </p>
