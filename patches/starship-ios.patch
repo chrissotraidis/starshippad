@@ -361,10 +361,10 @@ index 00000000..1b3913c4
 +</plist>
 diff --git a/ios/StarshipTouchControls.h b/ios/StarshipTouchControls.h
 new file mode 100644
-index 00000000..e9816ffb
+index 00000000..123451fd
 --- /dev/null
 +++ b/ios/StarshipTouchControls.h
-@@ -0,0 +1,15 @@
+@@ -0,0 +1,17 @@
 +#pragma once
 +
 +#ifdef __cplusplus
@@ -375,6 +375,8 @@ index 00000000..e9816ffb
 +float StarshipPad_GetSafeAreaLeft(void);
 +void StarshipPad_SetTouchControlsEnabled(int enabled);
 +void StarshipPad_SetTouchAnalogEnabled(int enabled);
++void StarshipPad_SetCustomTouchLayoutEnabled(int enabled);
++void StarshipPad_BeginTouchLayoutEditing(void);
 +void StarshipPad_SetTouchControlsMenuVisible(int visible);
 +
 +#ifdef __cplusplus
@@ -382,12 +384,14 @@ index 00000000..e9816ffb
 +#endif
 diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
 new file mode 100644
-index 00000000..f8be2d93
+index 00000000..575c93d6
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,865 @@
+@@ -0,0 +1,1428 @@
 +#import <UIKit/UIKit.h>
 +
++#include <algorithm>
++#include <array>
 +#include <atomic>
 +#include <SDL.h>
 +
@@ -395,9 +399,17 @@ index 00000000..f8be2d93
 +
 +static BOOL sTouchControlsDesired;
 +static BOOL sTouchAnalogDesired = YES;
++static BOOL sCustomTouchLayoutEnabled;
++static BOOL sLayoutEditorRequested;
++static BOOL sLayoutEditorActive;
 +static std::atomic_bool sTouchControlsMenuVisible(false);
++static std::atomic_bool sControllerReconcileQueued(false);
 +static SDL_Joystick* sVirtualJoystick;
 +static SDL_JoystickID sVirtualJoystickInstance = -1;
++static std::array<int, SDL_NUM_SCANCODES> sControlPressCounts = {};
++static const NSInteger kTouchLayoutStorageVersion = 2;
++static void StarshipPad_ApplyTouchControlsState(void);
++static void StarshipPad_ReleaseVisibleInputs(void);
 +
 +static void StarshipPad_PushKey(SDL_Scancode scancode, BOOL pressed) {
 +    SDL_Event event = {};
@@ -476,8 +488,15 @@ index 00000000..f8be2d93
 +}
 +
 +static void StarshipPad_PushControl(SDL_Scancode scancode, BOOL pressed) {
-+    if (!StarshipPad_PushVirtualControl(scancode, pressed)) {
-+        StarshipPad_PushKey(scancode, pressed);
++    int& count = sControlPressCounts[scancode];
++    const BOOL wasPressed = count > 0;
++    count = pressed ? count + 1 : MAX(0, count - 1);
++    const BOOL isPressed = count > 0;
++    if (wasPressed == isPressed) {
++        return;
++    }
++    if (!StarshipPad_PushVirtualControl(scancode, isPressed)) {
++        StarshipPad_PushKey(scancode, isPressed);
 +    }
 +}
 +
@@ -538,12 +557,47 @@ index 00000000..f8be2d93
 +            static_cast<int>(sVirtualJoystickInstance));
 +}
 +
++static BOOL StarshipPad_HasPhysicalController(void) {
++    for (int index = 0; index < SDL_NumJoysticks(); index++) {
++        if (SDL_JoystickGetDeviceInstanceID(index) != sVirtualJoystickInstance &&
++            SDL_IsGameController(index) == SDL_TRUE) {
++            return YES;
++        }
++    }
++    return NO;
++}
++
 +static void StarshipPad_ReconcileVirtualController(void) {
-+    if (sTouchControlsDesired && sTouchAnalogDesired) {
++    if (sTouchControlsDesired && sTouchAnalogDesired && !StarshipPad_HasPhysicalController()) {
 +        StarshipPad_AttachVirtualController();
 +    } else {
 +        StarshipPad_DetachVirtualController();
 +    }
++}
++
++static int StarshipPad_ControllerDeviceEventWatch(void* userdata, SDL_Event* event) {
++    (void)userdata;
++    if (event->type != SDL_CONTROLLERDEVICEADDED && event->type != SDL_CONTROLLERDEVICEREMOVED &&
++        event->type != SDL_JOYDEVICEADDED && event->type != SDL_JOYDEVICEREMOVED) {
++        return 1;
++    }
++    if (sControllerReconcileQueued.exchange(true)) {
++        return 1;
++    }
++
++    dispatch_async(dispatch_get_main_queue(), ^{
++        sControllerReconcileQueued.store(false);
++        StarshipPad_ReleaseVisibleInputs();
++        StarshipPad_ApplyTouchControlsState();
++    });
++    return 1;
++}
++
++static void StarshipPad_InstallControllerDeviceEventWatch(void) {
++    static dispatch_once_t onceToken;
++    dispatch_once(&onceToken, ^{
++        SDL_AddEventWatch(StarshipPad_ControllerDeviceEventWatch, nullptr);
++    });
 +}
 +
 +@interface StarshipPadTouchButton : UIButton
@@ -554,6 +608,7 @@ index 00000000..f8be2d93
 +@property(nonatomic) uint32_t inputDownTicks;
 +@property(nonatomic) NSUInteger pressGeneration;
 +@property(nonatomic) BOOL usesPillShape;
++@property(nonatomic) BOOL layoutEditing;
 +@property(nonatomic, strong) UIColor* idleColor;
 +@property(nonatomic, strong) UIColor* pressedColor;
 +
@@ -629,6 +684,9 @@ index 00000000..f8be2d93
 +}
 +
 +- (void)inputDown {
++    if (self.layoutEditing) {
++        return;
++    }
 +    if (self.inputPressed) {
 +        if (!self.releasePending) {
 +            return;
@@ -655,6 +713,9 @@ index 00000000..f8be2d93
 +}
 +
 +- (void)inputUp {
++    if (self.layoutEditing) {
++        return;
++    }
 +    if (!self.inputPressed) {
 +        return;
 +    }
@@ -678,7 +739,7 @@ index 00000000..f8be2d93
 +}
 +
 +- (BOOL)accessibilityActivate {
-+    if (!self.enabled) {
++    if (!self.enabled || self.layoutEditing) {
 +        return NO;
 +    }
 +
@@ -691,7 +752,7 @@ index 00000000..f8be2d93
 +}
 +
 +- (BOOL)accessibilityHold:(UIAccessibilityCustomAction*)action {
-+    if (!self.enabled) {
++    if (!self.enabled || self.layoutEditing) {
 +        return NO;
 +    }
 +
@@ -704,7 +765,7 @@ index 00000000..f8be2d93
 +}
 +
 +- (BOOL)accessibilityDoubleTap:(UIAccessibilityCustomAction*)action {
-+    if (!self.enabled) {
++    if (!self.enabled || self.layoutEditing) {
 +        return NO;
 +    }
 +
@@ -739,6 +800,7 @@ index 00000000..f8be2d93
 +@property(nonatomic) BOOL leftPressed;
 +@property(nonatomic) BOOL rightPressed;
 +@property(nonatomic) NSUInteger directionGeneration;
++@property(nonatomic) BOOL layoutEditing;
 +
 +- (void)cancelInput;
 +
@@ -834,6 +896,9 @@ index 00000000..f8be2d93
 +}
 +
 +- (BOOL)holdDirectionX:(CGFloat)x y:(CGFloat)y {
++    if (self.layoutEditing) {
++        return NO;
++    }
 +    self.directionGeneration += 1;
 +    const NSUInteger generation = self.directionGeneration;
 +    CGPoint center = CGPointMake(CGRectGetMidX(self.bounds), CGRectGetMidY(self.bounds));
@@ -865,6 +930,9 @@ index 00000000..f8be2d93
 +}
 +
 +- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    if (self.layoutEditing) {
++        return;
++    }
 +    UITouch* touch = touches.anyObject;
 +    if (touch != nil) {
 +        [self updateForPoint:[touch locationInView:self]];
@@ -872,6 +940,9 @@ index 00000000..f8be2d93
 +}
 +
 +- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
++    if (self.layoutEditing) {
++        return;
++    }
 +    UITouch* touch = touches.anyObject;
 +    if (touch != nil) {
 +        [self updateForPoint:[touch locationInView:self]];
@@ -901,6 +972,8 @@ index 00000000..f8be2d93
 +
 +@end
 +
++static StarshipPadTouchButton* sMenuButton;
++
 +@interface StarshipPadTouchOverlay : UIView
 +
 +@property(nonatomic, strong) StarshipPadTouchStick* controlStick;
@@ -919,8 +992,27 @@ index 00000000..f8be2d93
 +@property(nonatomic, strong) StarshipPadTouchButton* dDown;
 +@property(nonatomic, strong) StarshipPadTouchButton* dLeft;
 +@property(nonatomic, strong) StarshipPadTouchButton* dRight;
++@property(nonatomic) BOOL customizableControls;
++@property(nonatomic) BOOL layoutEditing;
++@property(nonatomic, strong) NSArray<UIView*>* editableControls;
++@property(nonatomic, strong) NSMutableArray<UIGestureRecognizer*>* editGestures;
++@property(nonatomic, strong) NSMutableDictionary<NSString*, NSArray<NSNumber*>*>* layoutCenters;
++@property(nonatomic, strong) NSMutableDictionary<NSString*, NSNumber*>* layoutScales;
++@property(nonatomic, strong) NSMutableSet<NSString*>* hiddenControls;
++@property(nonatomic, strong) NSMutableDictionary<NSString*, NSValue*>* defaultSizes;
++@property(nonatomic, copy) NSString* layoutProfile;
++@property(nonatomic, strong) UIView* selectedControl;
++@property(nonatomic, strong) UIView* editorPanel;
++@property(nonatomic, strong) UILabel* editorLabel;
++@property(nonatomic, strong) UISlider* sizeSlider;
++@property(nonatomic, strong) UIButton* visibilityButton;
++@property(nonatomic, strong) UIButton* resetButton;
++@property(nonatomic, strong) UIButton* doneButton;
 +
 +- (void)cancelAllInputs;
++- (void)setCustomizableControlsEnabled:(BOOL)enabled;
++- (void)beginLayoutEditing;
++- (void)endLayoutEditing;
 +
 +@end
 +
@@ -1015,10 +1107,40 @@ index 00000000..f8be2d93
 +            self.buttonView, self.buttonTalk, self.dUp, self.dDown,
 +            self.dLeft, self.dRight,
 +        ];
++
++        self.layoutCenters = [NSMutableDictionary dictionary];
++        self.layoutScales = [NSMutableDictionary dictionary];
++        self.hiddenControls = [NSMutableSet set];
++        self.defaultSizes = [NSMutableDictionary dictionary];
++        self.editGestures = [NSMutableArray array];
++
++        self.controlStick.accessibilityIdentifier = @"stick";
++        self.buttonA.accessibilityIdentifier = @"a";
++        self.buttonB.accessibilityIdentifier = @"b";
++        self.buttonZShoulder.accessibilityIdentifier = @"z-left";
++        self.buttonZFace.accessibilityIdentifier = @"z-right";
++        self.buttonR.accessibilityIdentifier = @"r";
++        self.buttonStart.accessibilityIdentifier = @"start";
++        self.buttonBoost.accessibilityIdentifier = @"boost";
++        self.buttonBrake.accessibilityIdentifier = @"brake";
++        self.buttonView.accessibilityIdentifier = @"view";
++        self.buttonTalk.accessibilityIdentifier = @"talk";
++        self.dUp.accessibilityIdentifier = @"d-up";
++        self.dDown.accessibilityIdentifier = @"d-down";
++        self.dLeft.accessibilityIdentifier = @"d-left";
++        self.dRight.accessibilityIdentifier = @"d-right";
++        self.editableControls = @[
++            self.controlStick, self.buttonA, self.buttonB, self.buttonZShoulder,
++            self.buttonZFace, self.buttonR, self.buttonStart, self.buttonBoost,
++            self.buttonBrake, self.buttonView, self.buttonTalk, self.dUp,
++            self.dDown, self.dLeft, self.dRight,
++        ];
++
 +        [self addSubview:self.controlStick];
 +        for (StarshipPadTouchButton* button in self.buttons) {
 +            [self addSubview:button];
 +        }
++        [self installLayoutEditor];
 +    }
 +    return self;
 +}
@@ -1026,6 +1148,237 @@ index 00000000..f8be2d93
 +- (UIView*)hitTest:(CGPoint)point withEvent:(UIEvent*)event {
 +    UIView* hit = [super hitTest:point withEvent:event];
 +    return hit == self ? nil : hit;
++}
++
++- (void)setCustomizableControlsEnabled:(BOOL)enabled {
++    if (self.customizableControls == enabled) {
++        return;
++    }
++    [self cancelAllInputs];
++    if (!enabled && self.layoutEditing) {
++        [self endLayoutEditing];
++    }
++    self.customizableControls = enabled;
++    [self setNeedsLayout];
++}
++
++- (UIButton*)editorButtonWithTitle:(NSString*)title action:(SEL)action {
++    UIButton* button = [UIButton buttonWithType:UIButtonTypeSystem];
++    [button setTitle:title forState:UIControlStateNormal];
++    [button setTitleColor:UIColor.whiteColor forState:UIControlStateNormal];
++    button.titleLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
++    button.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.14];
++    button.layer.cornerRadius = 10.0;
++    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
++    return button;
++}
++
++- (void)installLayoutEditor {
++    self.editorPanel = [[UIView alloc] initWithFrame:CGRectZero];
++    self.editorPanel.backgroundColor = [UIColor colorWithWhite:0.04 alpha:0.88];
++    self.editorPanel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.24].CGColor;
++    self.editorPanel.layer.borderWidth = 1.0;
++    self.editorPanel.layer.cornerRadius = 16.0;
++    self.editorPanel.hidden = YES;
++
++    self.editorLabel = [[UILabel alloc] initWithFrame:CGRectZero];
++    self.editorLabel.textColor = UIColor.whiteColor;
++    self.editorLabel.numberOfLines = 2;
++    self.editorLabel.font = [UIFont systemFontOfSize:14.0 weight:UIFontWeightSemibold];
++    [self.editorPanel addSubview:self.editorLabel];
++
++    self.sizeSlider = [[UISlider alloc] initWithFrame:CGRectZero];
++    self.sizeSlider.minimumValue = 0.70f;
++    self.sizeSlider.maximumValue = 1.50f;
++    self.sizeSlider.value = 1.0f;
++    self.sizeSlider.minimumTrackTintColor =
++        [UIColor colorWithRed:0.28 green:0.68 blue:1.0 alpha:1.0];
++    [self.sizeSlider addTarget:self
++                        action:@selector(editorSizeChanged:)
++              forControlEvents:UIControlEventValueChanged];
++    [self.editorPanel addSubview:self.sizeSlider];
++
++    self.visibilityButton =
++        [self editorButtonWithTitle:@"Hide" action:@selector(toggleSelectedVisibility)];
++    self.resetButton =
++        [self editorButtonWithTitle:@"Reset" action:@selector(resetCurrentLayout)];
++    self.doneButton =
++        [self editorButtonWithTitle:@"Done" action:@selector(endLayoutEditing)];
++    self.doneButton.backgroundColor =
++        [UIColor colorWithRed:0.10 green:0.48 blue:0.92 alpha:0.88];
++    [self.editorPanel addSubview:self.visibilityButton];
++    [self.editorPanel addSubview:self.resetButton];
++    [self.editorPanel addSubview:self.doneButton];
++    self.resetButton.accessibilityIdentifier = @"touch-layout-reset";
++    self.doneButton.accessibilityIdentifier = @"touch-layout-done";
++    [self addSubview:self.editorPanel];
++
++    for (UIView* control in self.editableControls) {
++        UIPanGestureRecognizer* pan =
++            [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(moveControl:)];
++        UITapGestureRecognizer* tap =
++            [[UITapGestureRecognizer alloc] initWithTarget:self
++                                                    action:@selector(selectControlGesture:)];
++        pan.enabled = NO;
++        tap.enabled = NO;
++        [control addGestureRecognizer:pan];
++        [control addGestureRecognizer:tap];
++        [self.editGestures addObject:pan];
++        [self.editGestures addObject:tap];
++    }
++}
++
++- (void)layoutEditorPanel {
++    if (self.editorPanel.hidden) {
++        return;
++    }
++    UIEdgeInsets safe = self.safeAreaInsets;
++    CGFloat width = CGRectGetWidth(self.bounds);
++    CGFloat panelWidth = MIN(620.0, width - safe.left - safe.right - 20.0);
++    CGFloat panelHeight = CGRectGetHeight(self.bounds) < 560.0 ? 76.0 : 86.0;
++    self.editorPanel.frame =
++        CGRectMake(CGRectGetMidX(self.bounds) - panelWidth * 0.5,
++                   safe.top + 8.0, panelWidth, panelHeight);
++
++    CGFloat inset = 12.0;
++    CGFloat buttonWidth = 70.0;
++    CGFloat gap = 8.0;
++    CGFloat contentHeight = panelHeight - inset * 2.0;
++    CGFloat trailingButtonsWidth = buttonWidth * 3.0 + gap * 2.0;
++    CGFloat labelWidth = MIN(150.0, panelWidth * 0.23);
++    CGFloat sliderX = inset + labelWidth + gap;
++    CGFloat sliderWidth =
++        panelWidth - inset * 2.0 - labelWidth - gap - trailingButtonsWidth - gap;
++    self.editorLabel.frame = CGRectMake(inset, inset, labelWidth, contentHeight);
++    self.sizeSlider.frame =
++        CGRectMake(sliderX, inset, MAX(80.0, sliderWidth), contentHeight);
++
++    CGFloat buttonX = panelWidth - inset - trailingButtonsWidth;
++    for (UIButton* button in
++         @[ self.visibilityButton, self.resetButton, self.doneButton ]) {
++        button.frame = CGRectMake(buttonX, inset, buttonWidth, contentHeight);
++        buttonX += buttonWidth + gap;
++    }
++}
++
++- (NSString*)profileForCompact:(BOOL)compact {
++    return compact ? @"phone-v1" : @"tablet-v1";
++}
++
++- (NSString*)storageKeyForProfile:(NSString*)profile {
++    return [@"StarshipPad.TouchLayout." stringByAppendingString:profile];
++}
++
++- (void)loadLayoutForProfile:(NSString*)profile {
++    if ([self.layoutProfile isEqualToString:profile]) {
++        return;
++    }
++    self.layoutProfile = profile;
++    [self.layoutCenters removeAllObjects];
++    [self.layoutScales removeAllObjects];
++    [self.hiddenControls removeAllObjects];
++
++    NSDictionary* stored =
++        [NSUserDefaults.standardUserDefaults
++            dictionaryForKey:[self storageKeyForProfile:profile]];
++    NSDictionary* centers = stored[@"centers"];
++    NSDictionary* scales = stored[@"scales"];
++    NSArray* hidden = stored[@"hidden"];
++    const BOOL migratePhoneStart =
++        [profile isEqualToString:@"phone-v1"] &&
++        stored != nil &&
++        [stored[@"version"] integerValue] < kTouchLayoutStorageVersion;
++    if ([centers isKindOfClass:NSDictionary.class]) {
++        [self.layoutCenters addEntriesFromDictionary:centers];
++    }
++    if (migratePhoneStart) {
++        [self.layoutCenters removeObjectForKey:@"start"];
++    }
++    if ([scales isKindOfClass:NSDictionary.class]) {
++        [self.layoutScales addEntriesFromDictionary:scales];
++    }
++    if ([hidden isKindOfClass:NSArray.class]) {
++        [self.hiddenControls addObjectsFromArray:hidden];
++    }
++    if (migratePhoneStart) {
++        [self saveCurrentLayout];
++    }
++}
++
++- (void)saveCurrentLayout {
++    if (self.layoutProfile.length == 0) {
++        return;
++    }
++    NSDictionary* stored = @{
++        @"version": @(kTouchLayoutStorageVersion),
++        @"centers": [self.layoutCenters copy],
++        @"scales": [self.layoutScales copy],
++        @"hidden": self.hiddenControls.allObjects,
++    };
++    [NSUserDefaults.standardUserDefaults
++        setObject:stored
++           forKey:[self storageKeyForProfile:self.layoutProfile]];
++}
++
++- (void)clampControlToSafeBounds:(UIView*)control {
++    UIEdgeInsets safe = self.safeAreaInsets;
++    CGFloat halfWidth = CGRectGetWidth(control.bounds) * 0.5;
++    CGFloat halfHeight = CGRectGetHeight(control.bounds) * 0.5;
++    CGFloat minX = safe.left + halfWidth + 4.0;
++    BOOL compact = CGRectGetHeight(self.bounds) < 560.0;
++    CGFloat rightInset = compact ? MAX(8.0, safe.right * 0.35) : safe.right + 4.0;
++    CGFloat maxX = CGRectGetWidth(self.bounds) - rightInset - halfWidth;
++    CGFloat minY = safe.top + halfHeight + 4.0;
++    CGFloat maxY = CGRectGetHeight(self.bounds) - safe.bottom - halfHeight - 4.0;
++    control.center = CGPointMake(
++        std::clamp(control.center.x, minX, MAX(minX, maxX)),
++        std::clamp(control.center.y, minY, MAX(minY, maxY)));
++}
++
++- (void)applyCustomLayoutForCompact:(BOOL)compact {
++    if (!self.customizableControls) {
++        for (UIView* control in self.editableControls) {
++            control.hidden = NO;
++            control.alpha = 1.0;
++            control.layer.shadowRadius = 0.0;
++            control.layer.shadowOpacity = 0.0;
++        }
++        return;
++    }
++
++    [self loadLayoutForProfile:[self profileForCompact:compact]];
++    [self.defaultSizes removeAllObjects];
++    CGFloat width = CGRectGetWidth(self.bounds);
++    CGFloat height = CGRectGetHeight(self.bounds);
++    for (UIView* control in self.editableControls) {
++        NSString* key = control.accessibilityIdentifier;
++        CGSize defaultSize = control.bounds.size;
++        self.defaultSizes[key] = [NSValue valueWithCGSize:defaultSize];
++        CGFloat controlScale = self.layoutScales[key] == nil
++            ? 1.0
++            : std::clamp(self.layoutScales[key].doubleValue, 0.70, 1.50);
++        control.bounds =
++            CGRectMake(0.0, 0.0, defaultSize.width * controlScale,
++                       defaultSize.height * controlScale);
++        NSArray<NSNumber*>* center = self.layoutCenters[key];
++        if ([center isKindOfClass:NSArray.class] && center.count == 2) {
++            control.center =
++                CGPointMake(center[0].doubleValue * width,
++                            center[1].doubleValue * height);
++        }
++        [self clampControlToSafeBounds:control];
++        BOOL hidden = [self.hiddenControls containsObject:key];
++        control.hidden = self.layoutEditing ? NO : hidden;
++        control.alpha = self.layoutEditing && hidden ? 0.28 : 1.0;
++        BOOL selected = self.layoutEditing && control == self.selectedControl;
++        control.layer.shadowColor =
++            [UIColor colorWithRed:1.0 green:0.78 blue:0.16 alpha:1.0].CGColor;
++        control.layer.shadowRadius = selected ? 8.0 : 0.0;
++        control.layer.shadowOpacity = selected ? 1.0 : 0.0;
++        control.layer.shadowOffset = CGSizeZero;
++    }
++    [self layoutEditorPanel];
++    [self bringSubviewToFront:self.editorPanel];
 +}
 +
 +- (void)layoutSubviews {
@@ -1109,9 +1462,16 @@ index 00000000..f8be2d93
 +
 +    self.buttonR.frame =
 +        CGRectMake(width - right - shoulderWidth, shoulderY, shoulderWidth, pillHeight);
-+    self.buttonStart.frame =
-+        CGRectMake(CGRectGetMinX(self.buttonR.frame) - pillHeight - 12.0 * scale,
-+                   shoulderY, pillHeight, pillHeight);
++    if (height < 560.0) {
++        CGFloat compactRightInset = MAX(8.0, safe.right * 0.35);
++        self.buttonStart.frame =
++            CGRectMake(width - compactRightInset - pillHeight,
++                       safe.top + 66.0, pillHeight, pillHeight);
++    } else {
++        self.buttonStart.frame =
++            CGRectMake(CGRectGetMinX(self.buttonR.frame) - pillHeight - 12.0 * scale,
++                       shoulderY, pillHeight, pillHeight);
++    }
 +
 +    CGFloat labelSize = 18.0 * scale;
 +    for (StarshipPadTouchButton* button in self.buttons) {
@@ -1127,6 +1487,140 @@ index 00000000..f8be2d93
 +        button.titleLabel.font =
 +            [UIFont systemFontOfSize:13.0 * scale weight:UIFontWeightBold];
 +    }
++    [self applyCustomLayoutForCompact:height < 560.0];
++}
++
++- (void)selectControl:(UIView*)control {
++    if (!self.layoutEditing || control == nil) {
++        return;
++    }
++    self.selectedControl = control;
++    NSString* label = control.accessibilityLabel;
++    if (label.length == 0) {
++        label = control.accessibilityIdentifier;
++    }
++    self.editorLabel.text =
++        [NSString stringWithFormat:@"%@\nDrag to move • Size", label];
++    NSString* key = control.accessibilityIdentifier;
++    self.sizeSlider.value =
++        self.layoutScales[key] == nil ? 1.0f : self.layoutScales[key].floatValue;
++    BOOL hidden = [self.hiddenControls containsObject:key];
++    [self.visibilityButton setTitle:(hidden ? @"Show" : @"Hide")
++                           forState:UIControlStateNormal];
++    self.visibilityButton.enabled = ![key isEqualToString:@"stick"];
++    self.visibilityButton.alpha = self.visibilityButton.enabled ? 1.0 : 0.4;
++    [self setNeedsLayout];
++}
++
++- (void)selectControlGesture:(UITapGestureRecognizer*)gesture {
++    [self selectControl:gesture.view];
++}
++
++- (void)moveControl:(UIPanGestureRecognizer*)gesture {
++    UIView* control = gesture.view;
++    if (!self.layoutEditing || control == nil) {
++        return;
++    }
++    if (gesture.state == UIGestureRecognizerStateBegan) {
++        [self selectControl:control];
++    }
++    CGPoint translation = [gesture translationInView:self];
++    control.center =
++        CGPointMake(control.center.x + translation.x,
++                    control.center.y + translation.y);
++    [gesture setTranslation:CGPointZero inView:self];
++    [self clampControlToSafeBounds:control];
++    self.layoutCenters[control.accessibilityIdentifier] = @[
++        @(control.center.x / CGRectGetWidth(self.bounds)),
++        @(control.center.y / CGRectGetHeight(self.bounds)),
++    ];
++}
++
++- (void)editorSizeChanged:(UISlider*)slider {
++    UIView* control = self.selectedControl;
++    NSString* key = control.accessibilityIdentifier;
++    NSValue* sizeValue = self.defaultSizes[key];
++    if (control == nil || key.length == 0 || sizeValue == nil) {
++        return;
++    }
++    CGFloat scale = slider.value;
++    self.layoutScales[key] = @(scale);
++    CGSize baseSize = sizeValue.CGSizeValue;
++    control.bounds =
++        CGRectMake(0.0, 0.0, baseSize.width * scale, baseSize.height * scale);
++    [self clampControlToSafeBounds:control];
++    self.layoutCenters[key] = @[
++        @(control.center.x / CGRectGetWidth(self.bounds)),
++        @(control.center.y / CGRectGetHeight(self.bounds)),
++    ];
++}
++
++- (void)toggleSelectedVisibility {
++    NSString* key = self.selectedControl.accessibilityIdentifier;
++    if (key.length == 0 || [key isEqualToString:@"stick"]) {
++        return;
++    }
++    if ([self.hiddenControls containsObject:key]) {
++        [self.hiddenControls removeObject:key];
++    } else {
++        [self.hiddenControls addObject:key];
++    }
++    [self selectControl:self.selectedControl];
++}
++
++- (void)resetCurrentLayout {
++    if (self.layoutProfile.length == 0) {
++        return;
++    }
++    [self.layoutCenters removeAllObjects];
++    [self.layoutScales removeAllObjects];
++    [self.hiddenControls removeAllObjects];
++    [NSUserDefaults.standardUserDefaults
++        removeObjectForKey:[self storageKeyForProfile:self.layoutProfile]];
++    [self setNeedsLayout];
++    [self selectControl:self.buttonA];
++}
++
++- (void)beginLayoutEditing {
++    if (!self.customizableControls || self.layoutEditing) {
++        return;
++    }
++    [self cancelAllInputs];
++    self.layoutEditing = YES;
++    for (StarshipPadTouchButton* button in self.buttons) {
++        button.layoutEditing = YES;
++    }
++    self.controlStick.layoutEditing = YES;
++    for (UIGestureRecognizer* gesture in self.editGestures) {
++        gesture.enabled = YES;
++    }
++    self.editorPanel.hidden = NO;
++    sLayoutEditorActive = YES;
++    sMenuButton.hidden = YES;
++    [self selectControl:self.buttonA];
++    [self setNeedsLayout];
++    SDL_Log("StarshipPad experimental touch layout editor opened");
++}
++
++- (void)endLayoutEditing {
++    if (!self.layoutEditing) {
++        return;
++    }
++    [self saveCurrentLayout];
++    self.layoutEditing = NO;
++    for (StarshipPadTouchButton* button in self.buttons) {
++        button.layoutEditing = NO;
++    }
++    self.controlStick.layoutEditing = NO;
++    for (UIGestureRecognizer* gesture in self.editGestures) {
++        gesture.enabled = NO;
++    }
++    self.editorPanel.hidden = YES;
++    self.selectedControl = nil;
++    sLayoutEditorActive = NO;
++    sMenuButton.hidden = NO;
++    [self setNeedsLayout];
++    SDL_Log("StarshipPad experimental touch layout saved");
 +}
 +
 +- (void)cancelAllInputs {
@@ -1139,7 +1633,29 @@ index 00000000..f8be2d93
 +@end
 +
 +static StarshipPadTouchOverlay* sTouchOverlay;
-+static StarshipPadTouchButton* sMenuButton;
++
++static void StarshipPad_InstallLifecycleObservers(void) {
++    static dispatch_once_t onceToken;
++    dispatch_once(&onceToken, ^{
++        NSNotificationCenter* notifications = NSNotificationCenter.defaultCenter;
++        [notifications
++            addObserverForName:UIApplicationWillResignActiveNotification
++                        object:nil
++                         queue:NSOperationQueue.mainQueue
++                    usingBlock:^(NSNotification* notification) {
++                        (void)notification;
++                        StarshipPad_ReleaseVisibleInputs();
++                    }];
++        [notifications
++            addObserverForName:UIApplicationDidEnterBackgroundNotification
++                        object:nil
++                         queue:NSOperationQueue.mainQueue
++                    usingBlock:^(NSNotification* notification) {
++                        (void)notification;
++                        StarshipPad_ReleaseVisibleInputs();
++                    }];
++    });
++}
 +
 +static UIWindow* StarshipPad_ActiveWindow(void) {
 +    for (UIScene* scene in UIApplication.sharedApplication.connectedScenes) {
@@ -1173,17 +1689,28 @@ index 00000000..f8be2d93
 +
 +    const CGFloat size = 44.0;
 +    const UIEdgeInsets safe = window.safeAreaInsets;
++    const BOOL compact = CGRectGetHeight(window.bounds) < 560.0;
++    const CGFloat rightInset = compact ? MAX(8.0, safe.right * 0.35) : safe.right + 8.0;
++    const CGFloat topInset = compact ? 16.0 : 52.0;
 +    sMenuButton.frame =
-+        CGRectMake(CGRectGetWidth(window.bounds) - safe.right - size - 8.0,
-+                   safe.top + 76.0, size, size);
++        CGRectMake(CGRectGetWidth(window.bounds) - rightInset - size,
++                   safe.top + topInset, size, size);
 +    if (sMenuButton.superview != window) {
 +        [sMenuButton removeFromSuperview];
 +        [window addSubview:sMenuButton];
 +    }
++    sMenuButton.hidden = sLayoutEditorActive;
 +    [window bringSubviewToFront:sMenuButton];
 +}
 +
++static void StarshipPad_ReleaseVisibleInputs(void) {
++    [sTouchOverlay cancelAllInputs];
++    [sMenuButton cancelInput];
++}
++
 +static void StarshipPad_ApplyTouchControlsState(void) {
++    StarshipPad_InstallControllerDeviceEventWatch();
++    StarshipPad_InstallLifecycleObservers();
 +    StarshipPad_ReconcileVirtualController();
 +
 +    UIWindow* window = StarshipPad_ActiveWindow();
@@ -1197,7 +1724,8 @@ index 00000000..f8be2d93
 +
 +    StarshipPad_InstallMenuButton(window);
 +    if (!sTouchControlsDesired || sTouchControlsMenuVisible.load()) {
-+        [sTouchOverlay cancelAllInputs];
++        [sTouchOverlay endLayoutEditing];
++        StarshipPad_ReleaseVisibleInputs();
 +        [sTouchOverlay removeFromSuperview];
 +        sTouchOverlay = nil;
 +        return;
@@ -1205,16 +1733,23 @@ index 00000000..f8be2d93
 +
 +    if (sTouchOverlay == nil) {
 +        sTouchOverlay = [[StarshipPadTouchOverlay alloc] initWithFrame:window.bounds];
++        [sTouchOverlay setCustomizableControlsEnabled:sCustomTouchLayoutEnabled];
 +        sTouchOverlay.autoresizingMask =
 +            UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
 +    }
++    [sTouchOverlay setCustomizableControlsEnabled:sCustomTouchLayoutEnabled];
 +    if (sTouchOverlay.superview != window) {
 +        [sTouchOverlay removeFromSuperview];
 +        sTouchOverlay.frame = window.bounds;
 +        [window addSubview:sTouchOverlay];
 +    }
++    [sTouchOverlay setNeedsLayout];
 +    [window bringSubviewToFront:sTouchOverlay];
 +    [window bringSubviewToFront:sMenuButton];
++    if (sLayoutEditorRequested && sCustomTouchLayoutEnabled) {
++        sLayoutEditorRequested = NO;
++        [sTouchOverlay beginLayoutEditing];
++    }
 +}
 +
 +int StarshipPad_TouchControlsAvailable(void) {
@@ -1242,6 +1777,36 @@ index 00000000..f8be2d93
 +    });
 +}
 +
++void StarshipPad_SetCustomTouchLayoutEnabled(int enabled) {
++    dispatch_async(dispatch_get_main_queue(), ^{
++        StarshipPad_ReleaseVisibleInputs();
++        sCustomTouchLayoutEnabled = enabled != 0;
++        if (!sCustomTouchLayoutEnabled) {
++            sLayoutEditorRequested = NO;
++        }
++        [sTouchOverlay setCustomizableControlsEnabled:sCustomTouchLayoutEnabled];
++        StarshipPad_ApplyTouchControlsState();
++        SDL_Log("StarshipPad experimental custom touch layout %s",
++                sCustomTouchLayoutEnabled ? "enabled" : "disabled");
++    });
++}
++
++void StarshipPad_BeginTouchLayoutEditing(void) {
++    dispatch_async(dispatch_get_main_queue(), ^{
++        if (!sCustomTouchLayoutEnabled || !sTouchControlsDesired) {
++            SDL_Log("StarshipPad layout editor requires experimental custom touch controls");
++            return;
++        }
++        sLayoutEditorRequested = YES;
++        if (sTouchControlsMenuVisible.load()) {
++            StarshipPad_PushKey(SDL_SCANCODE_F1, YES);
++            StarshipPad_PushKey(SDL_SCANCODE_F1, NO);
++        } else {
++            StarshipPad_ApplyTouchControlsState();
++        }
++    });
++}
++
 +void StarshipPad_SetTouchControlsMenuVisible(int visible) {
 +    const bool menuVisible = visible != 0;
 +    if (sTouchControlsMenuVisible.exchange(menuVisible) == menuVisible) {
@@ -1252,7 +1817,7 @@ index 00000000..f8be2d93
 +    });
 +}
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..19444cec 100644
+index bc0ccb1f..939af0b9 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
 @@ -1,6 +1,9 @@
@@ -1487,14 +2052,17 @@ index bc0ccb1f..19444cec 100644
  bool GameEngine::GenAssetFile(bool exitOnFail) {
      auto extractor = new GameExtractor();
  
-@@ -297,6 +475,12 @@ void GameEngine::Create() {
+@@ -297,6 +475,15 @@ void GameEngine::Create() {
      instance->AudioInit();
      DisplayListPatch::Run();
      GameUI::SetupGuiElements();
 +#ifdef __IOS__
 +    CVarRegisterInteger("gSettings.TouchControls", 1);
 +    CVarRegisterInteger("gSettings.TouchAnalog", 1);
++    CVarRegisterInteger("gSettings.ExperimentalCustomTouchLayout", 0);
 +    StarshipPad_SetTouchAnalogEnabled(CVarGetInteger("gSettings.TouchAnalog", 1));
++    StarshipPad_SetCustomTouchLayoutEnabled(
++        CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0));
 +    StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
 +#endif
  #if defined(__SWITCH__) || defined(__WIIU__)
@@ -1574,7 +2142,7 @@ index ef7894be..b3db47d1 100644
 \ No newline at end of file
 +}
 diff --git a/src/port/extractor/GameExtractor.cpp b/src/port/extractor/GameExtractor.cpp
-index 9be7f4b7..8ff28edc 100644
+index 9be7f4b7..2269df6b 100644
 --- a/src/port/extractor/GameExtractor.cpp
 +++ b/src/port/extractor/GameExtractor.cpp
 @@ -1,6 +1,10 @@
@@ -1588,7 +2156,7 @@ index 9be7f4b7..8ff28edc 100644
  
  #include "Context.h"
  #include "spdlog/spdlog.h"
-@@ -23,48 +27,151 @@ std::unordered_map<std::string, std::string> mGameList = {
+@@ -23,48 +27,172 @@ std::unordered_map<std::string, std::string> mGameList = {
      { "3a05aba5549fa71e8b16a0c6e2c8481b070818a9", "Star Fox 64 (C) (V1.1) (Uncompressed)" },
  };
  
@@ -1666,6 +2234,27 @@ index 9be7f4b7..8ff28edc 100644
  #endif
 +}
  
++bool GameExtractor::SelectVoicePackFromAppDirectory() {
++    const auto roms = FindRoms(Ship::Context::GetAppDirectoryPath());
++    if (roms.empty()) {
++        mLastError = "No ROM files were found in the StarshipPad Files folder.";
++        return false;
++    }
++
++    for (const auto& romPath : roms) {
++        if (!LoadGame(romPath) || !ValidateChecksum().has_value()) {
++            continue;
++        }
++        if (StarshipPad::IsVoicePackRoute(StarshipPad::GetRomArchiveRoute(mGameHash))) {
++            return true;
++        }
++    }
++
++    mLastError =
++        "No supported regional voice ROM was found. The US ROM creates the base game and is not a voice pack.";
++    return false;
++}
++
 +bool GameExtractor::LoadGame(const fs::path& path) {
 +    this->mGamePath = path;
      std::ifstream file(this->mGamePath, std::ios::binary);
@@ -1749,10 +2338,10 @@ index 9be7f4b7..8ff28edc 100644
 +    return this->mLastError;
 +}
 diff --git a/src/port/extractor/GameExtractor.h b/src/port/extractor/GameExtractor.h
-index a6423495..48377a78 100644
+index a6423495..2a21e36b 100644
 --- a/src/port/extractor/GameExtractor.h
 +++ b/src/port/extractor/GameExtractor.h
-@@ -2,16 +2,25 @@
+@@ -2,16 +2,26 @@
  
  #include "Companion.h"
  #include <filesystem>
@@ -1768,6 +2357,7 @@ index a6423495..48377a78 100644
 +    static std::vector<fs::path> FindRoms(const fs::path& directory);
 +    std::optional<std::string> ValidateChecksum();
      bool SelectGameFromUI();
++    bool SelectVoicePackFromAppDirectory();
 +    bool LoadGame(const fs::path& path);
      bool GenerateOTR() const;
 +    bool IsMainGame() const;
@@ -1784,10 +2374,10 @@ index a6423495..48377a78 100644
 +};
 diff --git a/src/port/extractor/GameExtractorRoutes.h b/src/port/extractor/GameExtractorRoutes.h
 new file mode 100644
-index 00000000..79e9010b
+index 00000000..c23cec2a
 --- /dev/null
 +++ b/src/port/extractor/GameExtractorRoutes.h
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,59 @@
 +#pragma once
 +
 +#include <string_view>
@@ -1825,6 +2415,11 @@ index 00000000..79e9010b
 +    return RomArchiveRoute::Unsupported;
 +}
 +
++constexpr bool IsVoicePackRoute(RomArchiveRoute route) {
++    return route == RomArchiveRoute::JapaneseVoice || route == RomArchiveRoute::EuropeanVoice ||
++           route == RomArchiveRoute::ChineseVoice;
++}
++
 +constexpr std::string_view GetRomArchiveRelativePath(RomArchiveRoute route) {
 +    switch (route) {
 +        case RomArchiveRoute::Main:
@@ -1843,43 +2438,139 @@ index 00000000..79e9010b
 +
 +} // namespace StarshipPad
 diff --git a/src/port/ui/ImguiUI.cpp b/src/port/ui/ImguiUI.cpp
-index 5874ac2a..2eec8fe9 100644
+index 5874ac2a..ea7558a7 100644
 --- a/src/port/ui/ImguiUI.cpp
 +++ b/src/port/ui/ImguiUI.cpp
-@@ -14,6 +14,10 @@
+@@ -14,6 +14,16 @@
  #include "port/notification/notification.h"
  #include "utils/StringHelper.h"
  
 +#ifdef __IOS__
++#include <chrono>
++#include <filesystem>
++#include <future>
++#include <optional>
++
 +#include "ios/StarshipTouchControls.h"
++#include "port/extractor/GameExtractor.h"
 +#endif
 +
  #ifdef __SWITCH__
  #include <port/switch/SwitchImpl.h>
  #include <port/switch/SwitchPerformanceProfiles.h>
-@@ -333,12 +337,13 @@ void DrawSettingsMenu(){
+@@ -119,6 +129,65 @@ static const char* voiceLangsSPA[] = {
+     "Español", /*"Japanese",*/ "Lylat"
+ };
+ 
++#ifdef __IOS__
++namespace {
++struct VoicePackInstallResult {
++    bool success = false;
++    std::string message;
++};
++
++std::optional<std::future<VoicePackInstallResult>> sVoicePackInstallTask;
++
++void StartVoicePackInstall() {
++    sVoicePackInstallTask.emplace(std::async(std::launch::async, []() {
++        VoicePackInstallResult result;
++        try {
++            auto extractor = std::make_shared<GameExtractor>();
++            if (!extractor->SelectVoicePackFromAppDirectory()) {
++                result.message = extractor->GetLastError();
++                return result;
++            }
++
++            const std::string outputPath = extractor->GetExpectedOutputPath();
++            SPDLOG_INFO("StarshipPad voice-pack installation started: input={}, output={}",
++                        extractor->GetGamePath().filename().string(),
++                        std::filesystem::path(outputPath).filename().string());
++
++            std::error_code error;
++            result.success =
++                extractor->GenerateOTR() && std::filesystem::is_regular_file(outputPath, error);
++            result.message = extractor->GetLastError();
++            if (result.success) {
++                result.message = "Voice-pack assets installed. Restart StarshipPad to use them.";
++            } else if (result.message.empty()) {
++                result.message = "The voice-pack archive could not be created.";
++            }
++
++            SPDLOG_INFO("StarshipPad voice-pack installation finished: success={}, output={}",
++                        result.success, std::filesystem::path(outputPath).filename().string());
++        } catch (const std::exception& exception) {
++            result.message = exception.what();
++            SPDLOG_ERROR("StarshipPad voice-pack installation failed: {}", result.message);
++        }
++        return result;
++    }));
++}
++
++void PollVoicePackInstall() {
++    if (!sVoicePackInstallTask.has_value() ||
++        sVoicePackInstallTask->wait_for(std::chrono::milliseconds(0)) != std::future_status::ready) {
++        return;
++    }
++
++    VoicePackInstallResult result = sVoicePackInstallTask->get();
++    sVoicePackInstallTask.reset();
++    GameEngine::ShowMessage(result.success ? "Success" : "Voice Pack",
++                            result.message.c_str(),
++                            result.success ? SDL_MESSAGEBOX_INFORMATION : SDL_MESSAGEBOX_ERROR);
++}
++} // namespace
++#endif
++
+ void DrawSpeakerPositionEditor() {
+     static ImVec2 lastCanvasPos;
+     ImGui::Text("Speaker Position Editor");
+@@ -231,6 +300,9 @@ void DrawSpeakerPositionEditor() {
+ }
+ 
+ void DrawSettingsMenu(){
++#ifdef __IOS__
++    PollVoicePackInstall();
++#endif
+     if(UIWidgets::BeginMenu("Settings")){
+         if (UIWidgets::BeginMenu("Audio")) {
+             UIWidgets::CVarSliderFloat("Master Volume", "gGameMasterVolume", 0.0f, 1.0f, 1.0f, {
+@@ -333,12 +405,24 @@ void DrawSettingsMenu(){
                              };
                      }
                  } else {
 -                    if (UIWidgets::Button("Install JP/EU Audio")) {
-+                    if (UIWidgets::Button("Voice Pack")) {
-                         if (GameEngine::GenAssetFile(false)){
+-                        if (GameEngine::GenAssetFile(false)){
 -                            GameEngine::ShowMessage("Success", "Audio assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
-+                            GameEngine::ShowMessage("Success", "Voice-pack assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
-                         }
-                         Ship::Context::GetInstance()->GetWindow()->Close();
+-                        }
+-                        Ship::Context::GetInstance()->GetWindow()->Close();
++#ifdef __IOS__
++                    const bool installingVoicePack = sVoicePackInstallTask.has_value();
++                    if (installingVoicePack) {
++                        UIWidgets::DisableComponent(ImGui::GetStyle().Alpha * 0.5f);
++                    }
++                    if (UIWidgets::Button("Voice Pack")) {
++                        StartVoicePackInstall();
++                    }
++                    if (installingVoicePack) {
++                        UIWidgets::ReEnableComponent("");
++                        ImGui::TextUnformatted("Installing voice pack...");
++                    }
++#else
++                    if (UIWidgets::Button("Voice Pack") && GameEngine::GenAssetFile(false)) {
++                        GameEngine::ShowMessage("Success", "Voice-pack assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
                      }
++#endif
 +                    UIWidgets::Tooltip("Import a supported JP, EU, or CN ROM for replacement voices.");
                  }
                  ImGui::EndMenu();
              }
-@@ -347,6 +352,27 @@ void DrawSettingsMenu(){
+@@ -347,6 +431,52 @@ void DrawSettingsMenu(){
          UIWidgets::Spacer(0);
  
          if (UIWidgets::BeginMenu("Controller")) {
 +#ifdef __IOS__
 +            if (UIWidgets::CVarCheckbox("Touch Controls", "gSettings.TouchControls", {
-+                    .tooltip = "Shows the on-screen Star Fox controls. Disable them when using a physical controller.",
++                    .tooltip = "Shows the on-screen Star Fox controls. A physical controller automatically takes priority.",
 +                    .defaultValue = true,
 +                })) {
 +                StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
@@ -1890,6 +2581,31 @@ index 5874ac2a..2eec8fe9 100644
 +                })) {
 +                StarshipPad_SetTouchAnalogEnabled(CVarGetInteger("gSettings.TouchAnalog", 1));
 +            }
++            if (UIWidgets::CVarCheckbox(
++                    "Experimental Custom Touch Layout",
++                    "gSettings.ExperimentalCustomTouchLayout", {
++                        .tooltip = "Opt in to movable, resizable, and hideable touch controls. The accepted default controls remain available when this is off.",
++                        .defaultValue = false,
++                    })) {
++                StarshipPad_SetCustomTouchLayoutEnabled(
++                    CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0));
++            }
++            const bool customLayoutAvailable =
++                CVarGetInteger("gSettings.TouchControls", 1) &&
++                CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0);
++            if (!customLayoutAvailable) {
++                UIWidgets::DisableComponent(ImGui::GetStyle().Alpha * 0.5f);
++            }
++            if (UIWidgets::Button("Customize Touch Layout")) {
++                StarshipPad_BeginTouchLayoutEditing();
++            }
++            if (!customLayoutAvailable) {
++                UIWidgets::ReEnableComponent("");
++            }
++            UIWidgets::Tooltip(
++                customLayoutAvailable
++                    ? "Closes Settings and opens the experimental native editor. Drag controls, resize the selected control, hide unused buttons, or reset the current phone/tablet layout."
++                    : "Enable Touch Controls and Experimental Custom Touch Layout first.");
 +            UIWidgets::Spacer(0);
 +#endif
 +            ImGui::TextUnformatted("Flight Controls");
@@ -1901,7 +2617,7 @@ index 5874ac2a..2eec8fe9 100644
              UIWidgets::WindowButton("Controller Mapping", "gInputEditorWindow", GameUI::mInputEditorWindow);
  
              UIWidgets::Spacer(0);
-@@ -355,10 +381,6 @@ void DrawSettingsMenu(){
+@@ -355,10 +485,6 @@ void DrawSettingsMenu(){
                  .tooltip = "Allows controller navigation of the SOH menu bar (Settings, Enhancements,...)\nCAUTION: This will disable game inputs while the menubar is visible.\n\nD-pad to move between items, A to select, and X to grab focus on the menu bar"
              });
  
@@ -1912,7 +2628,7 @@ index 5874ac2a..2eec8fe9 100644
              ImGui::EndMenu();
          }
  
-@@ -462,6 +484,7 @@ void DrawSettingsMenu(){
+@@ -462,6 +588,7 @@ void DrawSettingsMenu(){
          UIWidgets::PaddedEnhancementCheckbox("Match Refresh Rate", "gMatchRefreshRate", true, false);
          UIWidgets::Tooltip("Matches interpolation value to the refresh rate of your display.");
  
@@ -1920,7 +2636,7 @@ index 5874ac2a..2eec8fe9 100644
          if (Ship::Context::GetInstance()->GetWindow()->GetWindowBackend() == Ship::WindowBackend::FAST3D_DXGI_DX11) {
              UIWidgets::PaddedEnhancementCheckbox("Render parallelization","gRenderParallelization", true, false, {}, {}, {}, true);
              UIWidgets::Tooltip(
-@@ -470,6 +493,7 @@ void DrawSettingsMenu(){
+@@ -470,6 +597,7 @@ void DrawSettingsMenu(){
                  "or if you notice other performance problems.\n"
                  "Adds up to one frame of input lag under certain scenarios.");
          }
@@ -1928,7 +2644,7 @@ index 5874ac2a..2eec8fe9 100644
        
          UIWidgets::PaddedSeparator(true, true, 3.0f, 3.0f);
  
-@@ -479,6 +503,10 @@ void DrawSettingsMenu(){
+@@ -479,6 +607,10 @@ void DrawSettingsMenu(){
                  { Ship::WindowBackend::FAST3D_SDL_METAL, "Metal" }
          };
  
@@ -1939,7 +2655,7 @@ index 5874ac2a..2eec8fe9 100644
          ImGui::Text("Renderer API (Needs reload)");
          Ship::WindowBackend runningWindowBackend = Ship::Context::GetInstance()->GetWindow()->GetWindowBackend();
          Ship::WindowBackend configWindowBackend;
-@@ -507,6 +535,7 @@ void DrawSettingsMenu(){
+@@ -507,6 +639,7 @@ void DrawSettingsMenu(){
          if (Ship::Context::GetInstance()->GetWindow()->GetAvailableWindowBackends()->size() <= 1) {
              UIWidgets::ReEnableComponent("");
          }
@@ -1947,7 +2663,7 @@ index 5874ac2a..2eec8fe9 100644
  
          if (Ship::Context::GetInstance()->GetWindow()->CanDisableVerticalSync()) {
              UIWidgets::PaddedEnhancementCheckbox("Enable Vsync", "gVsyncEnabled", true, false, false, "", UIWidgets::CheckboxGraphics::Cross, true);
-@@ -915,6 +944,9 @@ void DrawDebugMenu() {
+@@ -915,6 +1048,9 @@ void DrawDebugMenu() {
  
  void GameMenuBar::DrawElement() {
      if(ImGui::BeginMenuBar()){
@@ -1957,7 +2673,7 @@ index 5874ac2a..2eec8fe9 100644
          DrawMenuBarIcon();
  
          DrawGameMenu();
-@@ -939,4 +971,4 @@ void GameMenuBar::DrawElement() {
+@@ -939,4 +1075,4 @@ void GameMenuBar::DrawElement() {
  
          ImGui::EndMenuBar();
      }

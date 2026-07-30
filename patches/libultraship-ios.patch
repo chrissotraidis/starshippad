@@ -511,10 +511,16 @@ index e4e47f5a..40c83e35 100644
              const float textWidth = GetStringWidth(overlay.Value.c_str());
              const float textOffset = 40.0f;
 diff --git a/src/window/gui/Gui.cpp b/src/window/gui/Gui.cpp
-index 953d4514..a65210b4 100644
+index 953d4514..a1d7f560 100644
 --- a/src/window/gui/Gui.cpp
 +++ b/src/window/gui/Gui.cpp
-@@ -7,6 +7,10 @@
+@@ -2,11 +2,16 @@
+ 
+ #include "Gui.h"
+ 
++#include <algorithm>
+ #include <cstring>
+ #include <utility>
  #include <string>
  #include <vector>
  
@@ -525,7 +531,7 @@ index 953d4514..a65210b4 100644
  #include "config/Config.h"
  #include "Context.h"
  #include "public/bridge/consolevariablebridge.h"
-@@ -129,9 +133,19 @@ void Gui::Init(GuiWindowInitData windowImpl) {
+@@ -129,9 +134,27 @@ void Gui::Init(GuiWindowInitData windowImpl) {
                                                            &iconsConfig, sIconsRanges);
  
  #if defined(__ANDROID__)
@@ -534,19 +540,53 @@ index 953d4514..a65210b4 100644
      mImGuiIo->FontGlobalScale = 2.0f;
 +#elif defined(__IOS__)
 +    SDL_Rect displayBounds = {};
-+    float uiScale = 1.0f;
++    float uiScale = 1.25f;
++    bool compactDisplay = true;
 +    if (SDL_GetDisplayUsableBounds(0, &displayBounds) == 0) {
 +        const int shortestSide = displayBounds.w < displayBounds.h ? displayBounds.w : displayBounds.h;
 +        if (shortestSide >= 600) {
 +            uiScale = 2.0f;
++            compactDisplay = false;
 +        }
 +    }
-+    ImGui::GetStyle().ScaleAllSizes(uiScale);
++    ImGuiStyle& style = ImGui::GetStyle();
++    style.ScaleAllSizes(uiScale);
++    if (compactDisplay) {
++        style.ScrollbarSize = std::max(style.ScrollbarSize, 20.0f);
++        style.GrabMinSize = std::max(style.GrabMinSize, 20.0f);
++        style.TouchExtraPadding = ImVec2(4.0f, 4.0f);
++    }
 +    mImGuiIo->FontGlobalScale = uiScale;
  #endif
  
      auto imguiIniPath = Context::GetPathRelativeToAppDirectory("imgui.ini");
-@@ -568,6 +582,10 @@ void Gui::DrawMenu() {
+@@ -295,12 +318,23 @@ bool Gui::SupportsViewports() {
+ void Gui::HandleWindowEvents(WindowEvent event) {
+     switch (Context::GetInstance()->GetWindow()->GetWindowBackend()) {
+         case WindowBackend::FAST3D_SDL_OPENGL:
+-        case WindowBackend::FAST3D_SDL_METAL:
+-            ImGui_ImplSDL2_ProcessEvent(static_cast<const SDL_Event*>(event.Sdl.Event));
++        case WindowBackend::FAST3D_SDL_METAL: {
++            const SDL_Event* sdlEvent = static_cast<const SDL_Event*>(event.Sdl.Event);
++            ImGui_ImplSDL2_ProcessEvent(sdlEvent);
++#ifdef __IOS__
++            if (sdlEvent->type == SDL_FINGERMOTION && GetMenuOrMenubarVisible()) {
++                constexpr float touchScrollSensitivity = 24.0f;
++                mImGuiIo->AddMousePosEvent(sdlEvent->tfinger.x * mImGuiIo->DisplaySize.x,
++                                           sdlEvent->tfinger.y * mImGuiIo->DisplaySize.y);
++                mImGuiIo->AddMouseWheelEvent(
++                    0.0f, sdlEvent->tfinger.dy * touchScrollSensitivity);
++            }
++#endif
+ #if defined(__ANDROID__) || defined(__IOS__)
+             Mobile::ImGuiProcessEvent(mImGuiIo->WantTextInput);
+ #endif
+             break;
++        }
+ #ifdef ENABLE_DX11
+         case WindowBackend::FAST3D_DXGI_DX11:
+             ImGui_ImplWin32_WndProcHandler(static_cast<HWND>(event.Win32.Handle), event.Win32.Msg, event.Win32.Param1,
+@@ -568,6 +602,10 @@ void Gui::DrawMenu() {
          GetMenu()->Draw();
      }
  

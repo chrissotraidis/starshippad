@@ -97,8 +97,10 @@ app container and is reused on later launches.
 
 US ROMs produce the base archive. Supported Japanese, European, Spanish, and
 Chinese ROMs route to the regional Voice Pack path. The settings action is
-available under **Settings > Language > Voice Pack**. Never copy a generated
-`sf64*.o2r` back into this repository.
+available under **Settings > Language > Voice Pack**. It scans only for a
+supported regional ROM, keeps the game responsive while extracting, and asks
+for a restart when the pack is ready. A US ROM is never re-extracted by this
+action. Never copy a generated `sf64*.o2r` back into this repository.
 
 ## Sign for a physical device
 
@@ -150,6 +152,11 @@ Under **Settings > Controller**:
   the complete eight-way keyboard fallback.
 - **Invert Flight Y Axis** is persisted in the app configuration.
 
+When an SDL-compatible physical controller connects, it takes Player 1
+priority and the virtual analog-touch controller is suspended. The visible
+touch buttons remain usable through their keyboard fallback. Disconnecting
+the physical controller restores analog touch automatically.
+
 Touch-only mission verification must cover fire, charged fire, bomb, boost,
 brake, both banks, double-tap barrel roll, boost plus stick-down somersault,
 brake plus stick-down all-range U-turn, Talk/C-Right, pause, and menu behavior.
@@ -174,7 +181,7 @@ Record the exact controller model, connection, device, and OS, then verify:
 6. an immediate save survives background, termination, and cold relaunch;
 7. speaker, headphones/Bluetooth, and a real audio interruption.
 
-The currently available machine has no connected iPhone/iPad, signing team,
-or physical controller. The Simulator and unsigned-device matrix therefore
-does not close those hardware gates; see
+Build and device-launch proof does not close the controller gate. A physical
+controller model still needs the protocol above before its gameplay,
+reconnect, and rumble behavior can be called verified; see
 [`remaining-work.md`](remaining-work.md).

@@ -2,15 +2,20 @@
 
 <p align="center">
   <strong>Star Fox 64, rebuilt for iPhone and iPad through HarbourMasters/Starship.</strong><br>
-  Native Metal rendering. Complete touch flight controls. Files-based setup
-  with your own legally acquired game data.
+  Native Metal rendering, touch flight controls, Files-based setup, and
+  separate experimental phone and tablet control layouts.
 </p>
 
 <p align="center">
+  <a href="https://www.buymeacoffee.com/chrissotraidis"><img alt="Buy me a coffee" src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" height="36"></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/chrissotraidis/starshippad/actions/workflows/ios-build.yml"><img alt="StarshipPad iOS build" src="https://github.com/chrissotraidis/starshippad/actions/workflows/ios-build.yml/badge.svg"></a>
   <img alt="iOS and iPadOS 16 or newer" src="https://img.shields.io/badge/iOS%20%2F%20iPadOS-16%2B-0A84FF?logo=apple">
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
-  <img alt="iPad Simulator tested" src="https://img.shields.io/badge/iPad%20Simulator-tested-30D158">
-  <img alt="Touch flight controls complete" src="https://img.shields.io/badge/touch-flight%20ready-64D2FF">
+  <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
+  <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
   <img alt="Unsigned IPA reproducible" src="https://img.shields.io/badge/IPA-unsigned%20build-FF9F0A">
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
@@ -20,16 +25,6 @@
 <p align="center">
   <sub>Current iPad Simulator capture. Game data was supplied locally and is
   not included in this repository or its build artifacts.</sub>
-</p>
-
-<p align="center">
-  <a href="#get-started">Build</a> ·
-  <a href="#first-flight">First flight</a> ·
-  <a href="#touch-flight-deck">Touch controls</a> ·
-  <a href="#setup-and-controls">Setup views</a> ·
-  <a href="#what-works">Current status</a> ·
-  <a href="docs/future-work.md">Future work</a> ·
-  <a href="docs/BUILDING.md">Full build guide</a>
 </p>
 
 StarshipPad turns the complete
@@ -42,36 +37,31 @@ This repository contains the mobile integration, maintained source patches,
 tests, and reproducible build scripts. It does **not** contain Star Fox 64, a
 ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 
-<table>
-  <tr>
-    <td width="33%"><strong>Native on Apple platforms</strong><br>Metal
-    rendering, system lifecycle integration, and Files-based import.</td>
-    <td width="33%"><strong>Built around touch</strong><br>Analog aim and every
-    required flight, combat, menu, and wingman action on the glass.</td>
-    <td width="33%"><strong>Reproducible by design</strong><br>Exact upstream
-    revisions, maintained patches, ROM-free builds, and package audits.</td>
-  </tr>
-</table>
-
 ## Install status
 
 | Option | Status | What it means |
 |---|---|---|
-| iPad Simulator | **Tested** | Best current path for development and UI validation; not physical-device proof |
-| Local signed iPhone/iPad build | **Build path available** | Supply your own Apple development team and bundle identifier |
+| Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
+| Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
 | Reproducible unsigned `.ipa` | **Audited locally** | Build artifact only; it cannot use the standard device-install path |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
-The full touch action matrix, Files import, extraction, cached relaunch,
-lifecycle persistence, iPhone layout, and iPad layout have been exercised in
-Simulator. An unsigned arm64 iPhoneOS build and ROM-free package audit also
-pass.
+The current development build has also reached gameplay on both attached
+devices. The accepted iPad controls are working well in hands-on testing. The
+experimental phone layout is usable and persists its separate configuration,
+and the compact settings interface now uses a readable scale, larger touch
+targets, and direct swipe scrolling. The latest far-right Menu-over-Start
+phone default has passed Simulator interaction checks and still requires
+physical-device acceptance. Phone control comfort, audio routes, controller
+models, reconnect, rumble, thermals, and sustained performance remain open
+validation work.
 
-Physical-device installation, thumb feel, real-speaker audio, controller
-models, reconnect, rumble, thermals, and performance remain open. GitHub
-Actions is currently blocked before runner allocation by the account's
-billing/spending state; this is recorded without presenting CI as green in
+Simulator Files import, extraction, cached relaunch, lifecycle persistence,
+and the full default touch-action matrix have passed. An unsigned arm64
+iPhoneOS build and ROM-free package audit also pass. The workflow badge above
+shows the current hosted-CI result; detailed engineering evidence and open
+hardware gates remain recorded in
 [`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## Get started
@@ -129,7 +119,7 @@ and package-audit details.
 StarshipPad never downloads or bundles game data.
 
 1. Launch StarshipPad once so iOS creates its Files-visible folder.
-2. Open **Files → On My iPad → StarshipPad**.
+2. Open **Files → On My iPhone/iPad → StarshipPad**.
 3. Move your supported `.z64`, `.v64`, or `.n64` file into that folder. The
    filename does not matter.
 4. Return to StarshipPad and choose **Rescan**.
@@ -139,14 +129,16 @@ StarshipPad never downloads or bundles game data.
 US inputs create the base local archive. Supported JP, EU, Spanish, and CN
 inputs are routed to the Voice Pack path instead of being treated as an
 unsupported base ROM. Extraction and generated data stay in the app
-container.
+container. **Settings → Language → Voice Pack** scans only for a supported
+regional ROM and installs it in the background; it never rebuilds the US base
+archive.
 
-## Touch flight deck
+## Touch controls
 
-The flight deck is arranged for a landscape iPad held at both edges. It starts
-with HarkinianPad's native-button, pass-through-overlay, safe-area, and
-persistent-menu mechanism, then applies Star Fox-specific bindings and
-continuous analog flight input.
+The default flight deck is arranged for a landscape device held at both
+edges. It starts with HarkinianPad's native-button, pass-through-overlay,
+safe-area, and persistent-menu mechanism, then applies Star Fox-specific
+bindings and continuous analog flight input.
 
 - **Left grip:** bank-left Z, full D-pad, and analog flight stick.
 - **Right grip:** R and Pause, A/B/Z face cluster, and the yellow C-button
@@ -155,6 +147,11 @@ continuous analog flight input.
 - **Menu:** `•••` remains available even when gameplay controls are hidden.
 - **Toggle:** **Settings → Controller → Touch Controls** removes or restores
   gameplay controls without a restart.
+- **Customize:** enable **Experimental Custom Touch Layout**, then choose
+  **Customize Touch Layout** to move, resize, or hide controls. Phone and
+  tablet configurations are stored separately.
+- **Default:** disabling the experiment immediately restores the accepted
+  fixed layout without deleting the saved custom profiles.
 - **Fallback:** disabling Analog Touch preserves the complete eight-way
   keyboard path.
 
@@ -172,9 +169,15 @@ continuous analog flight input.
 | D-pad | Full game/menu D-pad input |
 | `•••` | Open or close the LibUltraShip menu |
 
-All gameplay targets are safe-area aware and at least 44 points. Opening the
-menu cancels held inputs and hides the flight deck; closing it restores the
-deck only when Touch Controls remains enabled.
+All default gameplay targets are safe-area aware and at least 44 points.
+Opening the menu cancels held inputs and hides the flight deck; closing it
+restores the deck only when Touch Controls remains enabled.
+
+Custom layouts remain opt-in while they are evaluated on physical hardware.
+The compact-phone LibUltraShip interface supports direct swipe scrolling in
+Simulator, and the phone default places Menu above Start at the far-right
+edge. The accepted fixed controls remain the primary path until the wider
+phone/tablet interaction matrix passes on physical hardware.
 
 The exact layout, SDL bindings, accessibility contract, and evidence boundary
 are documented in
@@ -212,12 +215,12 @@ or extracted game asset is included. Capture provenance and hashes are in
 | Area | Current result |
 |---|---|
 | Native app | arm64 iOS/iPadOS 16+ app builds through pinned Starship and LibUltraShip |
-| Rendering | Metal title/game rendering passes on iPhone and iPad Simulator |
+| Rendering | Metal gameplay renders in Simulator and on the current physical iPhone/iPad test devices |
 | Setup | Files import accepts supported `.z64`, `.v64`, and `.n64` files under any name |
 | Extraction | Threaded in-app Torch extraction, responsive progress, cached relaunch |
 | Regions | US base path plus JP/EU/Spanish/CN Voice Pack routing |
-| Touch | Every required Star Fox action, analog aim, fallback, menu lifecycle |
-| Lifecycle | Background pause, config flush, and save persistence on Simulator |
+| Touch | Complete default flight deck plus opt-in phone/tablet layouts; compact menu scrolling and the revised phone stack pass in Simulator |
+| Lifecycle | Background pause/config flush pass in Simulator; in-place device updates preserve local app data |
 | Controllers | Existing SDL/GameController path is compiled; physical-model matrix remains open |
 | Packaging | ROM-free port archive, unsigned IPA, forbidden-file and signed-package gates |
 
@@ -286,7 +289,10 @@ issues requesting game data or download links.
 Yes. StarshipPad ports the same native UIKit button/stick overlay,
 safe-area/pass-through behavior, persistent menu button, and menu-visibility
 lifecycle. Its labels and bindings are adapted for Star Fox, and its stick
-adds a continuous SDL virtual-controller path for precision aiming.
+adds a continuous SDL virtual-controller path for precision aiming. It also
+adds an opt-in custom editor with separately persisted phone and tablet
+profiles; the accepted fixed controls remain available while that experiment
+is validated.
 </details>
 
 <details>
@@ -294,15 +300,20 @@ adds a continuous SDL virtual-controller path for precision aiming.
 
 Yes. The persistent `•••` button keeps the menu reachable. Open
 **Settings → Controller** and toggle **Touch Controls**. Analog Touch can be
-disabled independently to use the eight-way fallback.
+disabled independently to use the eight-way fallback. To rearrange controls,
+enable **Experimental Custom Touch Layout**, then choose **Customize Touch
+Layout**.
 </details>
 
 <details>
 <summary><strong>Does it support physical controllers?</strong></summary>
 
 Starship's existing SDL controller mappings and Apple's controller frameworks
-are present. No MFi, Xbox, or PlayStation model has been physically verified
-in this repository yet, so gameplay, reconnect, and rumble remain open.
+are present. A connected SDL-compatible controller automatically takes Player
+1 priority while the touch buttons remain available as a fallback; analog
+touch returns when the controller disconnects. No MFi, Xbox, or PlayStation
+model has been physically verified in this repository yet, so gameplay,
+reconnect, and rumble remain open.
 </details>
 
 <details>
@@ -325,7 +336,7 @@ Bluetooth, interruption, and route-change behavior require physical hardware.
 | [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) | Source and package release gates |
 | [`docs/LICENSES.md`](docs/LICENSES.md) | Final permissive dependency-license inventory |
 | [`docs/remaining-work.md`](docs/remaining-work.md) | Authoritative evidence ledger and open hardware gates |
-| [`docs/future-work.md`](docs/future-work.md) | Unimplemented Voice Pack, controller, and visual-pack follow-ups |
+| [`docs/future-work.md`](docs/future-work.md) | Controller and visual-pack follow-ups |
 | `ref/` | Ignored local ROM/reference area; never published |
 
 Generated sources, build directories, artifacts, ROMs, extracted assets, and

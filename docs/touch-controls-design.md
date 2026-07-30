@@ -7,7 +7,8 @@ is open, and the independent `•••` button always keeps that menu reachable
 
 The geometry and bindings are adapted for Star Fox 64. The center of the
 screen remains clear for aiming while both control groups sit in the lower,
-grip-reachable bands of a landscape iPad.
+grip-reachable bands of a landscape iPad. This accepted layout remains the
+default while customizable controls are evaluated.
 
 ![StarshipPad iPad touch layout](readme/starshippad-ipad-touch-layout.svg)
 
@@ -24,6 +25,29 @@ grip-reachable bands of a landscape iPad.
 - Opening the menu cancels held gameplay input before hiding the overlay.
 - Disabling Touch Controls removes gameplay controls without removing `•••`.
 - Disabling Analog Touch falls back to the complete eight-way keyboard path.
+
+## Experimental custom layout
+
+Settings → Controller → **Experimental Custom Touch Layout** opts into the
+customization layer without replacing the accepted controls. With the
+experiment enabled, **Customize Touch Layout** closes Settings and opens a
+native editor over the live controls:
+
+- tap and drag any control to move it;
+- resize the selected control from 70% to 150%;
+- hide or restore individual buttons (the flight stick cannot be hidden);
+- reset the current profile to StarshipPad's accepted defaults; and
+- choose Done to save the layout.
+
+Centers are stored as normalized coordinates, sizes as scalar multipliers,
+and hidden controls as stable identifiers in `NSUserDefaults`. Phone and
+tablet layouts use separate `phone-v1` and `tablet-v1` profiles. Restored
+controls are clamped inside the current safe area, and the independent `•••`
+menu button is not editable.
+
+Turning the experiment off immediately returns to the accepted default
+geometry. Saved experimental layouts remain available if the player opts in
+again.
 
 ## Bindings
 
@@ -57,6 +81,8 @@ for coordinate-based taps in the acceptance matrix.
 
 The current acceptance record lives in
 [`remaining-work.md`](remaining-work.md). Simulator checks establish layout,
-event delivery, menu lifecycle, and gameplay response. They do not establish
-physical thumb comfort, glass friction, simultaneous-touch feel, thermals, or
-device audio; those require a physical iPad.
+event delivery, menu lifecycle, persistence, and gameplay response. The
+experimental editor remains subject to Simulator and physical-device
+acceptance before it can replace the default path. Build success alone does
+not establish physical thumb comfort, glass friction, simultaneous-touch
+feel, thermals, or device audio; those require a physical iPad.
