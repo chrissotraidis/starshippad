@@ -184,26 +184,41 @@ are documented in
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/readme/starshippad-first-run.png" alt="StarshipPad ROM-free first-run setup screen in iPad Simulator">
+      <img src="docs/readme/starshippad-action-sunset.jpg" alt="StarshipPad touch controls during an aerial Star Fox 64 mission on iPad">
     </td>
     <td width="50%">
       <img src="docs/readme/starshippad-controller.jpg" alt="StarshipPad Controller settings showing Touch Controls and Analog Touch in iPad Simulator">
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>Bring your own game</strong><br>The clean
-    first-run screen directs you to the Files-visible StarshipPad folder.</td>
+    <td align="center"><strong>In-game action</strong><br>Fly, fight, and
+    answer your wingmen with the complete touch flight deck.</td>
     <td align="center"><strong>Tune it while running</strong><br>Touch,
     analog aim, invert-Y, and controller mapping remain available in the
     persistent menu.</td>
   </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/readme/starshippad-action-landmaster.jpg" alt="StarshipPad touch controls during a Landmaster mission on iPad">
+    </td>
+    <td width="50%">
+      <img src="docs/readme/starshippad-action-battle.jpg" alt="StarshipPad touch controls during an all-range battle on iPad">
+    </td>
+  </tr>
+  <tr>
+    <td align="center"><strong>More than an Arwing</strong><br>The touch-first
+    interface stays available across vehicle missions.</td>
+    <td align="center"><strong>Built for every stage</strong><br>Bank, boost,
+    brake, fire, and keep your hands on the action.</td>
+  </tr>
 </table>
 
-The gameplay image at the top and these interface views are current iPad
-Simulator captures. Together they show the rendered game, ROM-free first-run
-flow, touch overlay, and persistent settings access. They do not prove
-physical-device performance or control feel. No ROM, generated game archive,
-or extracted game asset is included. Capture provenance and hashes are in
+The three action views above are current physical-iPad captures; the opening
+gameplay image and Controller settings view are current iPad Simulator
+captures. Together they show rendered gameplay, the complete touch overlay,
+and persistent settings access. A screenshot does not prove sustained
+performance or control feel. No ROM, generated game archive, or extracted
+game asset is included. Capture provenance and hashes are in
 [`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## What works

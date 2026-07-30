@@ -1018,6 +1018,24 @@ Those hardware gates remain explicitly open on this machine.
   data. It includes no ROM, archive, or extracted game asset and is not
   physical-device proof.
 
+### 2026-07-30 — Physical-iPad gameplay gallery
+
+- Replaced the README's first-run setup panel with current in-game action
+  while retaining the Controller settings panel and its **Tune it while
+  running** explanation. Two additional physical-iPad captures now show the
+  touch deck during vehicle and all-range missions.
+- The three user-supplied 2732×2048 PNG captures were published as
+  1600×1199 JPEGs:
+  `docs/readme/starshippad-action-sunset.jpg`, 227,360 bytes, SHA-256
+  `a6e24e4f1a88c1557be9ce9c59959a60683cbb53962d1e1a0e17c1b6ca9214fd`;
+  `docs/readme/starshippad-action-landmaster.jpg`, 267,876 bytes, SHA-256
+  `b22e46c53594efd35889161bb607c96faa057651536c6960cca90e04bb49d749`;
+  and `docs/readme/starshippad-action-battle.jpg`, 277,353 bytes, SHA-256
+  `280c124a73d7dc9df948a5a905c33e0437873f29de78e89f3fdbb7b1fa8f7581`.
+- Boundary: these images document rendered gameplay on the attached physical
+  iPad and contain no ROM, generated archive, or extracted asset file. They
+  do not establish sustained performance, audio, or control-feel acceptance.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
