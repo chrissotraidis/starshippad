@@ -206,8 +206,8 @@ are documented in
     </td>
   </tr>
   <tr>
-    <td align="center"><strong>More than an Arwing</strong><br>The touch-first
-    interface stays available across vehicle missions.</td>
+    <td align="center"><strong>Take the fight planetside</strong><br>Trade
+    wings for treads when the mission calls for the Landmaster.</td>
     <td align="center"><strong>Built for every stage</strong><br>Bank, boost,
     brake, fire, and keep your hands on the action.</td>
   </tr>
