@@ -12,7 +12,7 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <img alt="Unsigned IPA reproducible" src="https://img.shields.io/badge/IPA-unsigned%20build-FF9F0A">
+  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1"><img alt="Unsigned IPA Preview 1 available" src="https://img.shields.io/badge/IPA-preview%201%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
@@ -39,9 +39,24 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Reproducible unsigned `.ipa` | **Audited locally** | Build artifact only; it cannot use the standard device-install path |
+| Reproducible unsigned `.ipa` | **Preview 1 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
+
+## Download Preview 1
+
+[Download StarshipPad Preview 1 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.1/StarshipPad-v0.1.0-preview.1-unsigned.ipa)
+or review the
+[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1).
+A separate
+[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.1/StarshipPad-v0.1.0-preview.1-unsigned.ipa.sha256)
+is published beside the IPA.
+
+This preview is ROM-free and unsigned. It is **not directly installable** on a
+standard iPhone or iPad as downloaded; you must sign it with your own Apple
+development identity and provisioning profile. Star Fox 64 game data is never
+included and must be imported separately from your own legally acquired
+supported ROM.
 
 The current development build has also reached gameplay on both attached
 devices. The accepted iPad controls are working well in hands-on testing. The
@@ -303,9 +318,11 @@ ROM-derived game archive.
 <details>
 <summary><strong>Where is the IPA?</strong></summary>
 
-No official signed download is available. The build produces an audited
-unsigned IPA under ignored `artifacts/`; it demonstrates reproducibility but
-does not remove Apple's signing requirements.
+The audited, ROM-free
+[Preview 1 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1)
+is available from GitHub Releases. It demonstrates reproducibility but is not
+installable as published: you must sign it with your own Apple development
+identity and provisioning profile. No official signed download is available.
 </details>
 
 <details>
