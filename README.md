@@ -2,8 +2,8 @@
 
 <p align="center">
   <strong>Star Fox 64, rebuilt for iPhone and iPad through HarbourMasters/Starship.</strong><br>
-  Native Metal rendering, touch flight controls, Files-based setup, and
-  separate experimental phone and tablet control layouts.
+  Native Metal rendering, touch flight controls, native controller input,
+  Files-based setup, and separate experimental phone and tablet layouts.
 </p>
 
 <p align="center">
@@ -26,8 +26,8 @@
 StarshipPad turns the complete
 [Starship](https://github.com/HarbourMasters/Starship) source port into a
 native iOS/iPadOS application. Build it on a Mac, import your own supported
-Star Fox 64 ROM through Files, and fly entirely by touch—no keyboard or
-separate controller required.
+Star Fox 64 ROM through Files, and fly by touch or connect a compatible
+controller—no keyboard required.
 
 This repository contains the mobile integration, maintained source patches,
 tests, and reproducible build scripts. It does **not** contain Star Fox 64, a
@@ -66,7 +66,8 @@ You need:
 
 - a Mac with Xcode and its command-line tools;
 - [Homebrew](https://brew.sh);
-- your own legally acquired supported Star Fox 64 ROM; and
+- your own legally acquired supported Star Fox 64 ROM;
+- optionally, an iOS-compatible extended gamepad over Bluetooth or USB; and
 - an Apple ID configured in Xcode only if you want a physical-device build.
 
 Install build dependencies:
@@ -128,6 +129,26 @@ unsupported base ROM. Extraction and generated data stay in the app
 container. **Settings → Language → Voice Pack** scans only for a supported
 regional ROM and installs it in the background; it never rebuilds the US base
 archive.
+
+## Controllers
+
+StarshipPad uses Apple's native GameController framework through SDL. Pair a
+compatible extended gamepad with iOS over Bluetooth or connect one by USB,
+then launch the game—there is no StarshipPad-specific driver or pairing step.
+
+- **Connect and play:** iOS-recognized MFi, Xbox, PlayStation, and other
+  SDL-compatible extended gamepads use the standard controller path.
+- **Automatic takeover:** a physical controller becomes Player 1 and analog
+  touch pauses; disconnecting it restores analog touch automatically.
+- **Native mapping:** review or rebind controls under
+  **Settings → Controller → Controller Mapping**.
+- **Touch stays available:** the visible touch buttons continue through their
+  keyboard fallback while a physical controller is connected.
+
+Compatibility ultimately depends on iOS recognizing the device and exposing
+an Extended Gamepad profile. The native path and automatic touch fallback are
+implemented and Simulator-tested; individual physical models,
+disconnect/reconnect, and rumble remain hardware-validation items.
 
 ## Touch controls
 
@@ -232,7 +253,7 @@ game asset is included. Capture provenance and hashes are in
 | Regions | US base path plus JP/EU/Spanish/CN Voice Pack routing |
 | Touch | Complete default flight deck plus opt-in phone/tablet layouts; compact menu scrolling and the revised phone stack pass in Simulator |
 | Lifecycle | Background pause/config flush pass in Simulator; in-place device updates preserve local app data |
-| Controllers | Existing SDL/GameController path is compiled; physical-model matrix remains open |
+| Controllers | Native GameController/SDL path for compatible Bluetooth or USB extended gamepads, with Player 1 takeover and automatic touch fallback; physical-model, reconnect, and rumble matrix remains open |
 | Packaging | ROM-free port archive, unsigned IPA, forbidden-file and signed-package gates |
 
 ## Supported game
