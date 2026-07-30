@@ -1,7 +1,7 @@
 # StarshipPad
 
 <p align="center">
-  <strong>Star Fox 64, rebuilt for iPhone and iPad through HarbourMasters/Starship.</strong><br>
+  <strong>Starship, adapted for iPhone and iPad as StarshipPad.</strong><br>
   Native Metal rendering, touch flight controls, native controller input,
   Files-based setup, and separate experimental phone and tablet layouts.
 </p>
@@ -12,11 +12,11 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1"><img alt="Unsigned IPA Preview 1 available" src="https://img.shields.io/badge/IPA-preview%201%20available-FF9F0A"></a>
+  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2"><img alt="Unsigned IPA Preview 2 available" src="https://img.shields.io/badge/IPA-preview%202%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
-![StarshipPad running Star Fox 64 in iPad Simulator with its complete touch flight deck](docs/readme/starshippad-hero.jpg)
+![StarshipPad running Starship in iPad Simulator with its complete touch flight deck](docs/readme/starshippad-hero.jpg)
 
 <p align="center">
   <sub>Current iPad Simulator capture. Game data was supplied locally and is
@@ -39,17 +39,17 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Reproducible unsigned `.ipa` | **Preview 1 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
+| Reproducible unsigned `.ipa` | **Preview 2 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
-## Download Preview 1
+## Download Preview 2
 
-[Download StarshipPad Preview 1 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.1/StarshipPad-v0.1.0-preview.1-unsigned.ipa)
+[Download StarshipPad Preview 2 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.2/StarshipPad-v0.1.0-preview.2-unsigned.ipa)
 or review the
-[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1).
+[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2).
 A separate
-[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.1/StarshipPad-v0.1.0-preview.1-unsigned.ipa.sha256)
+[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.2/StarshipPad-v0.1.0-preview.2-unsigned.ipa.sha256)
 is published beside the IPA.
 
 This preview is ROM-free and unsigned. It is **not directly installable** on a
@@ -169,7 +169,7 @@ disconnect/reconnect, and rumble remain hardware-validation items.
 
 The default flight deck is arranged for a landscape device held at both
 edges. It starts with HarkinianPad's native-button, pass-through-overlay,
-safe-area, and persistent-menu mechanism, then applies Star Fox-specific
+safe-area, and persistent-menu mechanism, then applies Starship-specific
 bindings and continuous analog flight input.
 
 - **Left grip:** bank-left Z, full D-pad, and analog flight stick.
@@ -319,7 +319,7 @@ ROM-derived game archive.
 <summary><strong>Where is the IPA?</strong></summary>
 
 The audited, ROM-free
-[Preview 1 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.1)
+[Preview 2 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2)
 is available from GitHub Releases. It demonstrates reproducibility but is not
 installable as published: you must sign it with your own Apple development
 identity and provisioning profile. No official signed download is available.
@@ -337,7 +337,7 @@ issues requesting game data or download links.
 
 Yes. StarshipPad ports the same native UIKit button/stick overlay,
 safe-area/pass-through behavior, persistent menu button, and menu-visibility
-lifecycle. Its labels and bindings are adapted for Star Fox, and its stick
+lifecycle. Its labels and bindings are adapted for Starship, and its stick
 adds a continuous SDL virtual-controller path for precision aiming. It also
 adds an opt-in custom editor with separately persisted phone and tablet
 profiles; the accepted fixed controls remain available while that experiment
@@ -384,6 +384,8 @@ Bluetooth, interruption, and route-change behavior require physical hardware.
 | [`docs/touch-controls-design.md`](docs/touch-controls-design.md) | Touch geometry, bindings, and interaction contract |
 | [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md) | Source and package release gates |
 | [`docs/LICENSES.md`](docs/LICENSES.md) | Final permissive dependency-license inventory |
+| [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) | Notices distributed with source and app bundles |
+| [`docs/ASSET_AND_TRADEMARK_NOTICE.md`](docs/ASSET_AND_TRADEMARK_NOTICE.md) | Game-data, screenshot, asset, and trademark boundaries |
 | [`docs/remaining-work.md`](docs/remaining-work.md) | Authoritative evidence ledger and open hardware gates |
 | [`docs/future-work.md`](docs/future-work.md) | Controller and visual-pack follow-ups |
 | `ref/` | Ignored local ROM/reference area; never published |
@@ -404,6 +406,9 @@ StarshipPad is an unofficial community project. It is independent of and not
 endorsed by Nintendo, HarbourMasters, Starship, LibUltraShip, or Torch.
 Nintendo trademarks and copyrights belong to Nintendo.
 
-StarshipPad-owned work is MIT licensed. It builds on Starship, LibUltraShip,
-Torch, SDL, and their contributors; every upstream component retains its own
-license and copyright. See [`docs/LICENSES.md`](docs/LICENSES.md).
+StarshipPad-owned work is MIT licensed. Gameplay screenshots, Nintendo game
+data, and third-party components are outside that license. Every upstream
+component retains its own license and copyright. See the
+[asset and trademark notice](docs/ASSET_AND_TRADEMARK_NOTICE.md), the
+[dependency inventory](docs/LICENSES.md), and the
+[notices distributed with the app](THIRD_PARTY_NOTICES.md).

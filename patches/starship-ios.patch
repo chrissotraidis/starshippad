@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index e7d0e797..ade018c9 100644
+index e7d0e797..18c9ceb8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -24,8 +24,13 @@ if(APPLE)
@@ -17,7 +17,7 @@ index e7d0e797..ade018c9 100644
  
  # Set the C++ standard and enable the MSVC parallel build option
  set(CMAKE_CXX_STANDARD 20 CACHE STRING "The C++ standard to use")
-@@ -56,13 +61,15 @@ set(CPP "${CMAKE_C_COMPILER}" "-E" "-P" "-Wno-trigraphs" "-x" "c")
+@@ -56,13 +61,27 @@ set(CPP "${CMAKE_C_COMPILER}" "-E" "-P" "-Wno-trigraphs" "-x" "c")
  endif()
  
  if(IOS)
@@ -31,11 +31,23 @@ index e7d0e797..ade018c9 100644
  )
 -set(CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM "YOUR_TEAM_ID")
 -set(PROJECT_ID "dev.net64.game")
-+set(BUNDLE_ID "com.example.starshippad" CACHE STRING "iOS bundle identifier")
++set(BUNDLE_ID "com.chrissotraidis.starshippad" CACHE STRING "iOS bundle identifier")
++set(STARSHIPPAD_VERSION "0.1.0" CACHE STRING "StarshipPad release version")
++set(STARSHIPPAD_BUILD_NUMBER "2" CACHE STRING "StarshipPad build number")
++set(STARSHIPPAD_NOTICES_FILE "" CACHE FILEPATH "StarshipPad third-party notices")
++set(STARSHIPPAD_APACHE_LICENSE_FILE "" CACHE FILEPATH "Apache License 2.0 text")
++add_compile_options(
++    "-ffile-prefix-map=${CMAKE_SOURCE_DIR}=Starship"
++    "-fmacro-prefix-map=${CMAKE_SOURCE_DIR}=Starship"
++    "-fdebug-prefix-map=${CMAKE_SOURCE_DIR}=Starship"
++    "-ffile-prefix-map=${CMAKE_BINARY_DIR}=build"
++    "-fmacro-prefix-map=${CMAKE_BINARY_DIR}=build"
++    "-fdebug-prefix-map=${CMAKE_BINARY_DIR}=build"
++)
  endif()
  
  ################################################################################
-@@ -166,22 +173,27 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
+@@ -166,22 +185,27 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
  list(FILTER ALL_FILES EXCLUDE REGEX "src/mods/object_ram.c")
  
  if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -73,7 +85,7 @@ index e7d0e797..ade018c9 100644
      )
  else()
      add_executable(${PROJECT_NAME} ${ALL_FILES})
-@@ -220,7 +232,12 @@ endif()
+@@ -220,7 +244,12 @@ endif()
  
  #=================== SSE2NEON ===================
  set(SSE2NEON_DIR ${CMAKE_BINARY_DIR}/_deps/sse2neon)
@@ -87,7 +99,7 @@ index e7d0e797..ade018c9 100644
  
  include_directories(${SSE2NEON_DIR})
  
-@@ -247,14 +264,12 @@ include_directories(
+@@ -247,14 +276,12 @@ include_directories(
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/menu
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils/binarytools
@@ -102,7 +114,7 @@ index e7d0e797..ade018c9 100644
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/libultra
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/bridge
-@@ -274,6 +289,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
+@@ -274,6 +301,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
  add_dependencies(${PROJECT_NAME} libultraship)
  target_link_libraries(${PROJECT_NAME} PRIVATE libultraship)
  
@@ -113,7 +125,7 @@ index e7d0e797..ade018c9 100644
  if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
      target_compile_definitions(${PROJECT_NAME} PRIVATE
          "$<$<CONFIG:Debug>:"
-@@ -355,6 +374,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+@@ -355,6 +386,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
      target_include_directories(${PROJECT_NAME} PRIVATE
          ${DEVKITPRO}/portlibs/wiiu/include/
      )
@@ -132,7 +144,7 @@ index e7d0e797..ade018c9 100644
  else()
      find_package(Ogg REQUIRED)
      find_package(Vorbis REQUIRED)
-@@ -605,11 +636,18 @@ add_custom_command(
+@@ -605,11 +648,18 @@ add_custom_command(
  )
  
  if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
@@ -152,7 +164,7 @@ index e7d0e797..ade018c9 100644
  )
  ExternalProject_Get_Property(TorchExternal install_dir)
  if (MSVC)
-@@ -632,9 +670,56 @@ add_custom_target(
+@@ -632,9 +682,71 @@ add_custom_target(
      COMMAND ${TORCH_EXECUTABLE} pack port starship.o2r o2r
      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/starship.o2r" "${CMAKE_BINARY_DIR}/starship.o2r"
  )
@@ -192,6 +204,21 @@ index e7d0e797..ade018c9 100644
 +            "${CMAKE_BINARY_DIR}/gamecontrollerdb.txt"
 +            "$<TARGET_FILE_DIR:Starship>/gamecontrollerdb.txt"
 +    )
++    foreach(legal_file_var IN ITEMS STARSHIPPAD_NOTICES_FILE STARSHIPPAD_APACHE_LICENSE_FILE)
++        if(NOT EXISTS "${${legal_file_var}}")
++            message(FATAL_ERROR "${legal_file_var} must name an existing file")
++        endif()
++    endforeach()
++    add_custom_command(
++        TARGET ${PROJECT_NAME} POST_BUILD
++        COMMENT "Copying distribution notices..."
++        COMMAND ${CMAKE_COMMAND} -E copy_if_different
++            "${STARSHIPPAD_NOTICES_FILE}"
++            "$<TARGET_FILE_DIR:Starship>/THIRD_PARTY_NOTICES.md"
++        COMMAND ${CMAKE_COMMAND} -E copy_if_different
++            "${STARSHIPPAD_APACHE_LICENSE_FILE}"
++            "$<TARGET_FILE_DIR:Starship>/LICENSE-APACHE-2.0.txt"
++    )
 +    if(EXISTS "${CMAKE_SOURCE_DIR}/starship.o2r")
 +        add_custom_command(
 +            TARGET ${PROJECT_NAME} POST_BUILD
@@ -210,7 +237,7 @@ index e7d0e797..ade018c9 100644
  
  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
    install(FILES "${CMAKE_BINARY_DIR}/starship.o2r" DESTINATION . COMPONENT ${PROJECT_NAME})
-@@ -685,5 +770,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+@@ -685,5 +797,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
      set(CPACK_GENERATOR "Bundle")
  endif()
  
@@ -220,7 +247,7 @@ index e7d0e797..ade018c9 100644
 +endif()
 diff --git a/cmake/ios-deps.cmake b/cmake/ios-deps.cmake
 new file mode 100644
-index 00000000..f4b5e5c1
+index 00000000..c186dd91
 --- /dev/null
 +++ b/cmake/ios-deps.cmake
 @@ -0,0 +1,32 @@
@@ -236,7 +263,7 @@ index 00000000..f4b5e5c1
 +FetchContent_Declare(
 +    Ogg
 +    GIT_REPOSITORY https://github.com/xiph/ogg.git
-+    GIT_TAG v1.3.6
++    GIT_TAG be05b13e98b048f0b5a0f5fa8ce514d56db5f822
 +    OVERRIDE_FIND_PACKAGE
 +)
 +FetchContent_MakeAvailable(Ogg)
@@ -247,7 +274,7 @@ index 00000000..f4b5e5c1
 +FetchContent_Declare(
 +    Vorbis
 +    GIT_REPOSITORY https://github.com/xiph/vorbis.git
-+    GIT_TAG v1.3.7
++    GIT_TAG 0657aee69dec8508a0011f47f3b69d7538e9d262
 +    OVERRIDE_FIND_PACKAGE
 +)
 +FetchContent_MakeAvailable(Vorbis)
@@ -290,7 +317,7 @@ index 00000000..73c00596
 +}
 diff --git a/ios/Info.plist.in b/ios/Info.plist.in
 new file mode 100644
-index 00000000..1b3913c4
+index 00000000..b036e23e
 --- /dev/null
 +++ b/ios/Info.plist.in
 @@ -0,0 +1,65 @@
@@ -313,9 +340,9 @@ index 00000000..1b3913c4
 +    <key>CFBundlePackageType</key>
 +    <string>APPL</string>
 +    <key>CFBundleShortVersionString</key>
-+    <string>@CMAKE_PROJECT_VERSION@</string>
++    <string>@STARSHIPPAD_VERSION@</string>
 +    <key>CFBundleVersion</key>
-+    <string>@CMAKE_PROJECT_VERSION@</string>
++    <string>@STARSHIPPAD_BUILD_NUMBER@</string>
 +    <key>GCSupportedGameControllers</key>
 +    <array>
 +        <dict>
@@ -1816,8 +1843,14 @@ index 00000000..575c93d6
 +        StarshipPad_ApplyTouchControlsState();
 +    });
 +}
+diff --git a/libultraship b/libultraship
+--- a/libultraship
++++ b/libultraship
+@@ -1 +1 @@
+-Subproject commit eaaf9d0fc91e2c400f49ef2a1f8547a691ce4d3c
++Subproject commit eaaf9d0fc91e2c400f49ef2a1f8547a691ce4d3c-dirty
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..939af0b9 100644
+index bc0ccb1f..93e20eab 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
 @@ -1,6 +1,9 @@
@@ -1888,7 +1921,7 @@ index bc0ccb1f..939af0b9 100644
  #ifndef __SWITCH__
      Ship::Context::GetInstance()->GetLogger()->set_level(
          (spdlog::level::level_enum) CVarGetInteger("gDeveloperTools.LogLevel", 1));
-@@ -265,6 +286,163 @@ GameEngine::GameEngine() {
+@@ -265,6 +286,168 @@ GameEngine::GameEngine() {
      context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
  }
  
@@ -1926,9 +1959,11 @@ index bc0ccb1f..939af0b9 100644
 +
 +        std::shared_ptr<GameExtractor> extractor;
 +        std::string gameName;
++        std::string lastCandidateError;
 +        for (const auto& romPath : roms) {
 +            auto candidate = std::make_shared<GameExtractor>();
 +            if (!candidate->LoadGame(romPath)) {
++                lastCandidateError = candidate->GetLastError();
 +                continue;
 +            }
 +            auto validatedGame = candidate->ValidateChecksum();
@@ -1937,10 +1972,13 @@ index bc0ccb1f..939af0b9 100644
 +                gameName = validatedGame.value();
 +                break;
 +            }
++            lastCandidateError = candidate->GetLastError();
 +        }
 +
 +        if (extractor == nullptr) {
-+            statusMessage = "A ROM file was found, but its checksum is not supported.";
++            statusMessage = lastCandidateError.empty()
++                                ? "A ROM file was found, but it is not supported."
++                                : lastCandidateError;
 +            state = SetupState::Error;
 +            return;
 +        }
@@ -2052,7 +2090,7 @@ index bc0ccb1f..939af0b9 100644
  bool GameEngine::GenAssetFile(bool exitOnFail) {
      auto extractor = new GameExtractor();
  
-@@ -297,6 +475,15 @@ void GameEngine::Create() {
+@@ -297,6 +480,15 @@ void GameEngine::Create() {
      instance->AudioInit();
      DisplayListPatch::Run();
      GameUI::SetupGuiElements();
@@ -2142,25 +2180,33 @@ index ef7894be..b3db47d1 100644
 \ No newline at end of file
 +}
 diff --git a/src/port/extractor/GameExtractor.cpp b/src/port/extractor/GameExtractor.cpp
-index 9be7f4b7..2269df6b 100644
+index 9be7f4b7..d1012463 100644
 --- a/src/port/extractor/GameExtractor.cpp
 +++ b/src/port/extractor/GameExtractor.cpp
-@@ -1,6 +1,10 @@
+@@ -1,6 +1,11 @@
  #include "GameExtractor.h"
 +#include "GameExtractorRoutes.h"
  
 +#include <algorithm>
 +#include <cctype>
++#include <cstdint>
  #include <fstream>
 +#include <memory>
  
  #include "Context.h"
  #include "spdlog/spdlog.h"
-@@ -23,48 +27,172 @@ std::unordered_map<std::string, std::string> mGameList = {
+@@ -23,48 +28,212 @@ std::unordered_map<std::string, std::string> mGameList = {
      { "3a05aba5549fa71e8b16a0c6e2c8481b070818a9", "Star Fox 64 (C) (V1.1) (Uncompressed)" },
  };
  
 +namespace {
++constexpr uintmax_t kMinimumRomBytes = 1024 * 1024;
++constexpr uintmax_t kMaximumRomBytes = 64 * 1024 * 1024;
++
++bool IsPlausibleRomSize(uintmax_t size) {
++    return size >= kMinimumRomBytes && size <= kMaximumRomBytes;
++}
++
 +bool NormalizeRomByteOrder(std::vector<uint8_t>& data) {
 +    if (data.size() < 0x40) {
 +        return false;
@@ -2233,7 +2279,7 @@ index 9be7f4b7..2269df6b 100644
 +    return LoadGame(roms.front());
  #endif
 +}
- 
++
 +bool GameExtractor::SelectVoicePackFromAppDirectory() {
 +    const auto roms = FindRoms(Ship::Context::GetAppDirectoryPath());
 +    if (roms.empty()) {
@@ -2257,13 +2303,33 @@ index 9be7f4b7..2269df6b 100644
 +
 +bool GameExtractor::LoadGame(const fs::path& path) {
 +    this->mGamePath = path;
-     std::ifstream file(this->mGamePath, std::ios::binary);
-+    if (!file.is_open()) {
++    this->mGameData.clear();
++    this->mGameHash.clear();
++    this->mLastError.clear();
++
++    std::error_code error;
++    const uintmax_t romSize = fs::file_size(this->mGamePath, error);
++    if (error || !IsPlausibleRomSize(romSize)) {
++        this->mLastError = "The selected ROM has an invalid size.";
 +        return false;
 +    }
-     this->mGameData = std::vector<uint8_t>( std::istreambuf_iterator( file ), {} );
-     file.close();
-+    this->mGameHash.clear();
+ 
+     std::ifstream file(this->mGamePath, std::ios::binary);
+-    this->mGameData = std::vector<uint8_t>( std::istreambuf_iterator( file ), {} );
+-    file.close();
++    if (!file.is_open()) {
++        this->mLastError = "The selected ROM could not be opened.";
++        return false;
++    }
++
++    this->mGameData.resize(static_cast<size_t>(romSize));
++    file.read(reinterpret_cast<char*>(this->mGameData.data()), static_cast<std::streamsize>(romSize));
++    if (!file || file.gcount() != static_cast<std::streamsize>(romSize)) {
++        this->mGameData.clear();
++        this->mLastError = "The selected ROM could not be read completely.";
++        return false;
++    }
++
 +    std::string format = "unknown";
 +    if (this->mGameData.size() >= 4) {
 +        if (this->mGameData[0] == 0x80 && this->mGameData[1] == 0x37) {
@@ -2275,6 +2341,8 @@ index 9be7f4b7..2269df6b 100644
 +        }
 +    }
 +    if (!NormalizeRomByteOrder(this->mGameData)) {
++        this->mGameData.clear();
++        this->mLastError = "The selected file is not a recognized N64 ROM.";
 +        return false;
 +    }
 +    SPDLOG_INFO("ROM import candidate loaded: file={}, format={}", this->mGamePath.filename().string(), format);
@@ -2283,18 +2351,33 @@ index 9be7f4b7..2269df6b 100644
  
 -std::optional<std::string> GameExtractor::ValidateChecksum() const {
 -    const auto rom = new N64::Cartridge(this->mGameData);
-+std::optional<std::string> GameExtractor::ValidateChecksum() {
-+    auto rom = std::make_unique<N64::Cartridge>(this->mGameData);
-     rom->Initialize();
+-    rom->Initialize();
 -    auto hash = rom->GetHash();
-+    this->mGameHash = rom->GetHash();
-     
+-    
 -    if (mGameList.find(hash) == mGameList.end()) {
-+    if (mGameList.find(this->mGameHash) == mGameList.end()) {
++std::optional<std::string> GameExtractor::ValidateChecksum() {
++    this->mGameHash.clear();
++    try {
++        auto rom = std::make_unique<N64::Cartridge>(this->mGameData);
++        rom->Initialize();
++        this->mGameHash = rom->GetHash();
++    } catch (const std::exception& exception) {
++        this->mLastError = "ROM validation failed.";
++        SPDLOG_ERROR("ROM validation failed: {}", exception.what());
++        return std::nullopt;
++    } catch (...) {
++        this->mLastError = "ROM validation failed.";
++        SPDLOG_ERROR("ROM validation failed with an unknown error");
          return std::nullopt;
      }
  
 -    return mGameList[hash];
++    if (mGameList.find(this->mGameHash) == mGameList.end()) {
++        this->mLastError = "The ROM checksum is not supported.";
++        return std::nullopt;
++    }
++
++    this->mLastError.clear();
 +    return mGameList[this->mGameHash];
  }
  
@@ -2712,3 +2795,9 @@ index cc78edaf..739ff687 100644
 -} // namespace AdvancedResolutionSettings
 \ No newline at end of file
 +} // namespace AdvancedResolutionSettings
+diff --git a/tools/Torch b/tools/Torch
+--- a/tools/Torch
++++ b/tools/Torch
+@@ -1 +1 @@
+-Subproject commit cd92cc0f161c5e79e36f5dda0d0029edd3fc8d50
++Subproject commit cd92cc0f161c5e79e36f5dda0d0029edd3fc8d50-dirty

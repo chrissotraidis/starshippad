@@ -25,6 +25,10 @@ This is the final gate for a public source snapshot or downloadable IPA.
 - [ ] `REQUIRE_SIGNED=1 scripts/package-ios.sh` rejects the same app.
 - [ ] Confirm the IPA and its bundled `starship.o2r` contain no ROM,
       ROM-derived archive, extracted asset, or signing material.
+- [ ] Confirm the app contains `THIRD_PARTY_NOTICES.md` and the complete
+      Apache 2.0 license text.
+- [ ] Confirm bundle version, build number, and identifier are deliberate and
+      no local build path appears in the executable.
 - [ ] Publish the checksum beside the IPA.
 - [ ] State prominently that the artifact is ROM-free, unsigned, and requires
       the user to supply both signing and legally acquired game data.
@@ -62,3 +66,12 @@ This is the final gate for a public source snapshot or downloadable IPA.
 
 Until those gates are resolved, describe StarshipPad as a source preview with
 an audited unsigned preview IPA—not a finished installable binary release.
+
+## When changing repository visibility to public
+
+- [ ] Require full commit-SHA pins for GitHub Actions.
+- [ ] Enable private vulnerability reporting.
+- [ ] Enable available default-branch protections after the repository plan
+      supports them.
+- [ ] Verify the repository description leads with Starship/StarshipPad, not
+      the supported game title.
