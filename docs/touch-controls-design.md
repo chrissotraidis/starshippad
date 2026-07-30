@@ -5,7 +5,7 @@ buttons post SDL input, the overlay passes through empty space, the layout
 respects safe areas, gameplay controls disappear while the LibUltraShip menu
 is open, and the independent `•••` button always keeps that menu reachable.
 
-The geometry and bindings are adapted for Star Fox 64. The center of the
+The geometry and bindings are adapted for Starship. The center of the
 screen remains clear for aiming while both control groups sit in the lower,
 grip-reachable bands of a landscape iPad. This accepted layout remains the
 default while customizable controls are evaluated.

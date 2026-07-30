@@ -59,6 +59,27 @@ if [ -n "$credential_hits" ]; then
     fail "a likely credential or private key exists in the current tree"
 fi
 
+for notice in THIRD_PARTY_NOTICES.md LICENSE-APACHE-2.0.txt \
+    docs/ASSET_AND_TRADEMARK_NOTICE.md; do
+    printf '%s\n' "$current_files" | grep -Fxq "$notice" ||
+        fail "required distribution notice is missing: $notice"
+done
+
+workflow_uses="$(grep -RhoE 'uses:[[:space:]]+[^[:space:]#]+' .github/workflows 2>/dev/null || true)"
+mutable_workflow_uses="$(printf '%s\n' "$workflow_uses" |
+    grep -Ev 'uses:[[:space:]]+[^@[:space:]]+@[0-9a-f]{40}$' || true)"
+if [ -n "$mutable_workflow_uses" ]; then
+    printf '%s\n' "$mutable_workflow_uses" >&2
+    fail "GitHub Actions must be pinned to full commit SHAs"
+fi
+
+mutable_added_cmake_tags="$(grep -hE '^\+.*GIT_TAG' patches/*.patch |
+    grep -Ev 'GIT_TAG[[:space:]]+[0-9a-f]{40}([[:space:]]|$)' || true)"
+if [ -n "$mutable_added_cmake_tags" ]; then
+    printf '%s\n' "$mutable_added_cmake_tags" >&2
+    fail "added CMake dependencies must be pinned to full commit SHAs"
+fi
+
 bash -n scripts/*.sh
 for script in scripts/*.sh; do
     [ -x "$script" ] || fail "$script is not executable"

@@ -233,8 +233,10 @@ Those hardware gates remain explicitly open on this machine.
   `0beebf3ecfb712e5d7e929732aff96b8d89fcca94e67e2a5b37d869365592e2f`.
   `file` and `lipo` report arm64; `vtool` reports `platform IOS`,
   `minos 14.0`, `sdk 26.5`. The app is intentionally unsigned.
-- Processed bundle metadata proves identifier `com.example.starshippad`,
-  version 2.0.0, iPhone+iPad device families, landscape-only orientations,
+- This early product used a placeholder bundle identifier and inherited
+  Starship's 2.0.0 version. Preview 2 supersedes both with the deliberate
+  StarshipPad identifier and 0.1.0 release metadata. The early build also
+  proved iPhone+iPad device families, landscape-only orientations,
   Files sharing/open-in-place, arm64+Metal requirements, full-screen/status
   bar behavior, ExtendedGamepad support, launch-screen dictionary, and a
   compiled app icon. The 10,526,720-byte bundle has 111 files, including 103
@@ -298,8 +300,8 @@ Those hardware gates remain explicitly open on this machine.
   `file` and `lipo` report arm64; `vtool` reports `platform IOSSIMULATOR`,
   `minos 14.0`, and `sdk 26.5`. The bundle carries the audited
   `starship.o2r` with the same SHA-256 and no `sf64.o2r`.
-- Runtime target: iPad Pro 11-inch (M4), iOS 18.5,
-  UDID `08636791-2675-4675-8335-EF72EF954DCF`. After uninstall/install, the
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator. After
+  uninstall/install, the
   clean data container received only the temporary derived `sf64.o2r`.
   Runtime logs prove both the Documents archive and bundled
   `StarshipPad.app/starship.o2r` were opened.
@@ -467,8 +469,7 @@ Those hardware gates remain explicitly open on this machine.
   `de754ed17f2e00c9413a64be15998d08a037842e4c7c5f3bd089fbf3ac772ea3`.
   The final arm64 Simulator and unsigned arm64 iPhoneOS builds both ended
   `** BUILD SUCCEEDED **`.
-- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator, UDID
-  `08636791-2675-4675-8335-EF72EF954DCF`. Three consecutive
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator. Three consecutive
   background/foreground cycles ran on the same PID, `96084`, without a crash.
   The exact pause/resume simulation-frame pairs were `365/365`, `917/917`,
   and `1221/1221`. The first background dwell was 20 seconds and produced no
@@ -551,8 +552,8 @@ Those hardware gates remain explicitly open on this machine.
   unchanged. Mouse-button defaults were deliberately not added because touch
   already uses the established keyboard path and an incidental secondary
   click would trigger a bomb.
-- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator, UDID
-  `08636791-2675-4675-8335-EF72EF954DCF`. The final accessibility tree exposed
+- Runtime target: iPad Pro 11-inch (M4), iOS 18.5 Simulator. The final
+  accessibility tree exposed
   Fire, Bomb, both banks, Pause, Menu, Boost, Brake, View, Talk, four D-pad
   directions, and the directional stick actions. Touch alone moved from title
   through menu and mission selection into gameplay. Settings → Controller →
@@ -1035,6 +1036,33 @@ Those hardware gates remain explicitly open on this machine.
 - Boundary: these images document rendered gameplay on the attached physical
   iPad and contain no ROM, generated archive, or extracted asset file. They
   do not establish sustained performance, audio, or control-feel acceptance.
+
+### 2026-07-30 — Public-release hardening and Preview 2 package
+
+- `v0.1.0-preview.1` and commit
+  `4d38f6a2c511fd23971dad96d54addf48cde6020` remain the pre-hardening rollback
+  point.
+- The Starship, LibUltraShip, and Torch patches were regenerated from their
+  exact pinned inputs, fresh-replayed, and reverse-checked. All iOS
+  FetchContent inputs and GitHub Actions now use full commit SHAs; a clean
+  dependency fetch confirmed every requested revision.
+- The clean device build ended `** BUILD SUCCEEDED **` with Xcode 26.6 and
+  the iPhoneOS 26.5 SDK, targeting arm64 and iOS 16.0 or newer.
+- Processed metadata reports `com.chrissotraidis.starshippad`, version 0.1.0,
+  and build 2. The executable contains no `/Users`, `/private/tmp`, or
+  `/var/folders` build path.
+- `THIRD_PARTY_NOTICES.md` and the complete Apache 2.0 text are in the app.
+  The inventory includes the controller database and SDL's linked HIDAPI and
+  yuv2rgb code.
+- ROM loading now rejects inputs outside 1–64 MiB before allocation, requires
+  a complete bounded read, and catches cartridge-validation exceptions. The
+  clean device compile verifies this path without using or publishing a ROM.
+- The ROM-free unsigned IPA passed the app and package audits; the signed-only
+  gate rejected it as required. Its SHA-256 is
+  `779d40f29f950023b36db6206f5e1ed4639a7252d5df2ae1e57a8a23b4f827a8`.
+- Boundary: this establishes source/package readiness for Preview 2 without
+  changing accepted touch geometry or bindings. It does not replace open
+  physical controller, audio-route, thermal, or sustained-performance gates.
 
 ## Open-question resolution ledger
 

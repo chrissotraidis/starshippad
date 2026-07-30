@@ -1,5 +1,5 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7e048ff..b880de9 100644
+index 7e048ff..51098ab 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -227,7 +227,7 @@ if(USE_STANDALONE)
@@ -7,7 +7,16 @@ index 7e048ff..b880de9 100644
  		spdlog
  		GIT_REPOSITORY https://github.com/gabime/spdlog.git
 -		GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7
-+		GIT_TAG v1.16.0
++		GIT_TAG 486b55554f11c9cccc913e11a87085b2a91f706f
  	)
  
  	FetchContent_MakeAvailable(spdlog)
+@@ -242,7 +242,7 @@ set(tinyxml2_BUILD_TESTING OFF)
+ FetchContent_Declare(
+     tinyxml2
+     GIT_REPOSITORY https://github.com/leethomason/tinyxml2.git
+-    GIT_TAG 10.0.0
++    GIT_TAG 321ea883b7190d4e85cae5512a12e5eaa8f8731f
+     OVERRIDE_FIND_PACKAGE
+ )
+ FetchContent_MakeAvailable(tinyxml2)

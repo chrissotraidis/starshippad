@@ -26,11 +26,27 @@ grep -Eq 'minos +16\.0$' <<< "$build_metadata" ||
 xcrun lipo -info "$APP/StarshipPad" | grep -Eq 'architecture: arm64$' ||
     fail "product is not arm64-only"
 
-for required in Info.plist Assets.car config.yml gamecontrollerdb.txt; do
+for required in Info.plist Assets.car config.yml gamecontrollerdb.txt \
+    THIRD_PARTY_NOTICES.md LICENSE-APACHE-2.0.txt; do
     [ -f "$APP/$required" ] || fail "required bundle file is missing: $required"
 done
 [ -d "$APP/assets/yaml" ] || fail "required assets/yaml tree is missing"
 plutil -lint "$APP/Info.plist" >/dev/null
+
+bundle_identifier="$(plutil -extract CFBundleIdentifier raw "$APP/Info.plist")"
+bundle_version="$(plutil -extract CFBundleShortVersionString raw "$APP/Info.plist")"
+bundle_build="$(plutil -extract CFBundleVersion raw "$APP/Info.plist")"
+[[ "$bundle_identifier" != com.example.* ]] ||
+    fail "placeholder bundle identifier remains: $bundle_identifier"
+[ "$bundle_version" = "${STARSHIPPAD_VERSION:-0.1.0}" ] ||
+    fail "unexpected release version: $bundle_version"
+[ "$bundle_build" = "${STARSHIPPAD_BUILD_NUMBER:-2}" ] ||
+    fail "unexpected build number: $bundle_build"
+
+local_path="$(strings -a "$APP/StarshipPad" |
+    grep -E -m 1 '(/Users/|/private/tmp/|/var/folders/)' || true)"
+[ -z "$local_path" ] ||
+    fail "executable exposes a local build path: $local_path"
 
 for pattern in '*.z64' '*.n64' '*.v64' '*.rom' 'sf64*.o2r' 'baserom*' '*.otr' '*.mpq'; do
     forbidden="$(find "$APP" -type f -iname "$pattern" -print -quit)"

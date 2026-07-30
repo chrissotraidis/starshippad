@@ -837,7 +837,7 @@ replays green with the patch applied; `git diff --check` clean.
 Create `patches/starship-ios.patch` (game side). Exact changes:
 - `CMakeLists.txt:58-66`: drop `YOUR_TEAM_ID` (accept `-DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM`
   from the configure script instead) and replace `PROJECT_ID "dev.net64.game"` with a
-  `BUNDLE_ID` cache option defaulting to `com.example.starshippad`; keep `PLATFORM OS64`
+  `BUNDLE_ID` cache option defaulting to `com.chrissotraidis.starshippad`; keep `PLATFORM OS64`
   overridable (`SIMULATORARM64` path mirrors `HP:scripts/configure-ios.sh`).
 - `CMakeLists.txt:28`: iOS branch for the deployment target (`14.0` via `DEPLOYMENT_TARGET`),
   mirroring the HarkinianPad `CMAKE_SYSTEM_VERSION` handling hunk.
@@ -878,7 +878,7 @@ signatures):
 scripts/clone-sources.sh && scripts/apply-source-patches.sh
 cmake -S sources/Starship -B build-ios -GXcode -DCMAKE_SYSTEM_NAME=iOS \
   -DCMAKE_SYSTEM_VERSION=14.0 -DDEPLOYMENT_TARGET=14.0 -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
-  -DCMAKE_OSX_ARCHITECTURES=arm64 -DPLATFORM=OS64 -DBUNDLE_ID=com.example.starshippad \
+  -DCMAKE_OSX_ARCHITECTURES=arm64 -DPLATFORM=OS64 -DBUNDLE_ID=com.chrissotraidis.starshippad \
   -DCMAKE_BUILD_TYPE:STRING=Release
 cmake --build build-ios --target Starship --config Release -- \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO -destination generic/platform=iOS
