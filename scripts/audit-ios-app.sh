@@ -26,7 +26,7 @@ grep -Eq 'minos +16\.0$' <<< "$build_metadata" ||
 xcrun lipo -info "$APP/StarshipPad" | grep -Eq 'architecture: arm64$' ||
     fail "product is not arm64-only"
 
-for required in Info.plist Assets.car config.yml gamecontrollerdb.txt \
+for required in Info.plist Assets.car config.yml gamecontrollerdb.txt LICENSE \
     THIRD_PARTY_NOTICES.md LICENSE-APACHE-2.0.txt; do
     [ -f "$APP/$required" ] || fail "required bundle file is missing: $required"
 done

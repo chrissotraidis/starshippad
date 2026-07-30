@@ -406,9 +406,12 @@ StarshipPad is an unofficial community project. It is independent of and not
 endorsed by Nintendo, HarbourMasters, Starship, LibUltraShip, or Torch.
 Nintendo trademarks and copyrights belong to Nintendo.
 
-StarshipPad-owned work is MIT licensed. Gameplay screenshots, Nintendo game
-data, and third-party components are outside that license. Every upstream
-component retains its own license and copyright. See the
+StarshipPad's original software and integration work are open source under the
+MIT license. Upstream Starship is distributed under the CC0 public-domain
+dedication, and every other third-party component retains its own license and
+copyright. Gameplay screenshots, Nintendo game data, and trademarks are
+outside StarshipPad's MIT license. Optional modification packs are not
+included and require their own permission. Details are in the
 [asset and trademark notice](docs/ASSET_AND_TRADEMARK_NOTICE.md), the
 [dependency inventory](docs/LICENSES.md), and the
 [notices distributed with the app](THIRD_PARTY_NOTICES.md).

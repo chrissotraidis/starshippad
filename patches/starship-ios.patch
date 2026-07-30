@@ -17,7 +17,7 @@ index e7d0e797..18c9ceb8 100644
  
  # Set the C++ standard and enable the MSVC parallel build option
  set(CMAKE_CXX_STANDARD 20 CACHE STRING "The C++ standard to use")
-@@ -56,13 +61,27 @@ set(CPP "${CMAKE_C_COMPILER}" "-E" "-P" "-Wno-trigraphs" "-x" "c")
+@@ -56,13 +61,28 @@ set(CPP "${CMAKE_C_COMPILER}" "-E" "-P" "-Wno-trigraphs" "-x" "c")
  endif()
  
  if(IOS)
@@ -34,6 +34,7 @@ index e7d0e797..18c9ceb8 100644
 +set(BUNDLE_ID "com.chrissotraidis.starshippad" CACHE STRING "iOS bundle identifier")
 +set(STARSHIPPAD_VERSION "0.1.0" CACHE STRING "StarshipPad release version")
 +set(STARSHIPPAD_BUILD_NUMBER "2" CACHE STRING "StarshipPad build number")
++set(STARSHIPPAD_LICENSE_FILE "" CACHE FILEPATH "StarshipPad MIT license")
 +set(STARSHIPPAD_NOTICES_FILE "" CACHE FILEPATH "StarshipPad third-party notices")
 +set(STARSHIPPAD_APACHE_LICENSE_FILE "" CACHE FILEPATH "Apache License 2.0 text")
 +add_compile_options(
@@ -47,7 +48,7 @@ index e7d0e797..18c9ceb8 100644
  endif()
  
  ################################################################################
-@@ -166,22 +185,27 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
+@@ -166,22 +186,27 @@ list(FILTER ALL_FILES EXCLUDE REGEX "src/sys/sys_fault.c")
  list(FILTER ALL_FILES EXCLUDE REGEX "src/mods/object_ram.c")
  
  if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
@@ -85,7 +86,7 @@ index e7d0e797..18c9ceb8 100644
      )
  else()
      add_executable(${PROJECT_NAME} ${ALL_FILES})
-@@ -220,7 +244,12 @@ endif()
+@@ -220,7 +245,12 @@ endif()
  
  #=================== SSE2NEON ===================
  set(SSE2NEON_DIR ${CMAKE_BINARY_DIR}/_deps/sse2neon)
@@ -99,7 +100,7 @@ index e7d0e797..18c9ceb8 100644
  
  include_directories(${SSE2NEON_DIR})
  
-@@ -247,14 +276,12 @@ include_directories(
+@@ -247,14 +277,12 @@ include_directories(
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/menu
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/utils/binarytools
@@ -114,7 +115,7 @@ index e7d0e797..18c9ceb8 100644
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/libultra
    ${CMAKE_CURRENT_SOURCE_DIR}/libultraship/src/public/bridge
-@@ -274,6 +301,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
+@@ -274,6 +302,10 @@ add_subdirectory(libultraship ${CMAKE_CURRENT_SOURCE_DIR}/libultraship)
  add_dependencies(${PROJECT_NAME} libultraship)
  target_link_libraries(${PROJECT_NAME} PRIVATE libultraship)
  
@@ -125,7 +126,7 @@ index e7d0e797..18c9ceb8 100644
  if (CMAKE_SYSTEM_NAME STREQUAL "Windows")
      target_compile_definitions(${PROJECT_NAME} PRIVATE
          "$<$<CONFIG:Debug>:"
-@@ -355,6 +386,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
+@@ -355,6 +387,18 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "CafeOS")
      target_include_directories(${PROJECT_NAME} PRIVATE
          ${DEVKITPRO}/portlibs/wiiu/include/
      )
@@ -144,7 +145,7 @@ index e7d0e797..18c9ceb8 100644
  else()
      find_package(Ogg REQUIRED)
      find_package(Vorbis REQUIRED)
-@@ -605,11 +648,18 @@ add_custom_command(
+@@ -605,11 +649,18 @@ add_custom_command(
  )
  
  if(NOT CMAKE_SYSTEM_NAME STREQUAL "NintendoSwitch")
@@ -164,7 +165,7 @@ index e7d0e797..18c9ceb8 100644
  )
  ExternalProject_Get_Property(TorchExternal install_dir)
  if (MSVC)
-@@ -632,9 +682,71 @@ add_custom_target(
+@@ -632,9 +683,77 @@ add_custom_target(
      COMMAND ${TORCH_EXECUTABLE} pack port starship.o2r o2r
      COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_SOURCE_DIR}/starship.o2r" "${CMAKE_BINARY_DIR}/starship.o2r"
  )
@@ -204,7 +205,10 @@ index e7d0e797..18c9ceb8 100644
 +            "${CMAKE_BINARY_DIR}/gamecontrollerdb.txt"
 +            "$<TARGET_FILE_DIR:Starship>/gamecontrollerdb.txt"
 +    )
-+    foreach(legal_file_var IN ITEMS STARSHIPPAD_NOTICES_FILE STARSHIPPAD_APACHE_LICENSE_FILE)
++    foreach(legal_file_var IN ITEMS
++            STARSHIPPAD_LICENSE_FILE
++            STARSHIPPAD_NOTICES_FILE
++            STARSHIPPAD_APACHE_LICENSE_FILE)
 +        if(NOT EXISTS "${${legal_file_var}}")
 +            message(FATAL_ERROR "${legal_file_var} must name an existing file")
 +        endif()
@@ -212,6 +216,9 @@ index e7d0e797..18c9ceb8 100644
 +    add_custom_command(
 +        TARGET ${PROJECT_NAME} POST_BUILD
 +        COMMENT "Copying distribution notices..."
++        COMMAND ${CMAKE_COMMAND} -E copy_if_different
++            "${STARSHIPPAD_LICENSE_FILE}"
++            "$<TARGET_FILE_DIR:Starship>/LICENSE"
 +        COMMAND ${CMAKE_COMMAND} -E copy_if_different
 +            "${STARSHIPPAD_NOTICES_FILE}"
 +            "$<TARGET_FILE_DIR:Starship>/THIRD_PARTY_NOTICES.md"
@@ -237,7 +244,7 @@ index e7d0e797..18c9ceb8 100644
  
  if("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
    install(FILES "${CMAKE_BINARY_DIR}/starship.o2r" DESTINATION . COMPONENT ${PROJECT_NAME})
-@@ -685,5 +797,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+@@ -685,5 +804,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Darwin")
      set(CPACK_GENERATOR "Bundle")
  endif()
  

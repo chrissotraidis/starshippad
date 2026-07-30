@@ -59,7 +59,7 @@ if [ -n "$credential_hits" ]; then
     fail "a likely credential or private key exists in the current tree"
 fi
 
-for notice in THIRD_PARTY_NOTICES.md LICENSE-APACHE-2.0.txt \
+for notice in LICENSE THIRD_PARTY_NOTICES.md LICENSE-APACHE-2.0.txt \
     docs/ASSET_AND_TRADEMARK_NOTICE.md; do
     printf '%s\n' "$current_files" | grep -Fxq "$notice" ||
         fail "required distribution notice is missing: $notice"

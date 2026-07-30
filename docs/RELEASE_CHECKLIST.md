@@ -25,8 +25,8 @@ This is the final gate for a public source snapshot or downloadable IPA.
 - [ ] `REQUIRE_SIGNED=1 scripts/package-ios.sh` rejects the same app.
 - [ ] Confirm the IPA and its bundled `starship.o2r` contain no ROM,
       ROM-derived archive, extracted asset, or signing material.
-- [ ] Confirm the app contains `THIRD_PARTY_NOTICES.md` and the complete
-      Apache 2.0 license text.
+- [ ] Confirm the app contains StarshipPad's `LICENSE`,
+      `THIRD_PARTY_NOTICES.md`, and the complete Apache 2.0 license text.
 - [ ] Confirm bundle version, build number, and identifier are deliberate and
       no local build path appears in the executable.
 - [ ] Publish the checksum beside the IPA.

@@ -3,6 +3,9 @@
 StarshipPad accepts focused changes that preserve its reproducible,
 ROM-free iOS build.
 
+By submitting a contribution, you agree to license it under the repository's
+MIT license.
+
 Before opening a pull request:
 
 1. Start from the current `main`.

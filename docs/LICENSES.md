@@ -35,6 +35,14 @@ data and extracted assets are not dependencies and are never distributed.
 | dr_libs | `da35f9d6c7374a95353fd1df1d394d44ab66cf01` | MIT-0 or public domain | Audio helpers |
 | sse2neon | `3b70b3727edc9a151c113814129258c3423a771c` | MIT | ARM SIMD compatibility header |
 
+## Original integration provenance
+
+The HarkinianPad-derived iOS integration work contributed to this repository
+by Chris Sotraidis is separately published here under StarshipPad's MIT
+license. This does not relicense HarkinianPad as a whole or third-party code
+present in patch context; each upstream component retains the license listed
+above.
+
 The generated Release link line also uses Apple system frameworks and system
 libraries supplied by the iPhoneOS SDK: AudioToolbox, AVFoundation,
 CoreAudio, CoreBluetooth, CoreGraphics, CoreHaptics (weak), CoreMotion,
@@ -47,6 +55,7 @@ configuration (`BUILD_STORMLIB=OFF`) and absent from the final link line.
 Host-only archive-generation dependencies and Xcode/CMake tooling are not
 part of the shipped binary closure.
 
-The app bundle includes `THIRD_PARTY_NOTICES.md` and the complete Apache 2.0
-text. The source copy is maintained at
-[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md).
+The app bundle includes StarshipPad's `LICENSE`, `THIRD_PARTY_NOTICES.md`, and
+the complete Apache 2.0 text. The source copies are maintained at
+[`LICENSE`](../LICENSE), [`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md),
+and [`LICENSE-APACHE-2.0.txt`](../LICENSE-APACHE-2.0.txt).
