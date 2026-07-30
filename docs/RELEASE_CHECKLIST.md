@@ -17,7 +17,19 @@ This is the final gate for a public source snapshot or downloadable IPA.
       signed app, or IPA appears in the current tree or Git history.
 - [ ] Remaining physical-device limitations are stated plainly.
 
-## Before publishing a downloadable IPA
+## Before publishing an unsigned preview IPA
+
+- [ ] Build from a clean checkout at the preview tag.
+- [ ] `scripts/build-ios.sh --device` produces an unsigned arm64 app.
+- [ ] `scripts/package-ios.sh` accepts the app and records the IPA SHA-256.
+- [ ] `REQUIRE_SIGNED=1 scripts/package-ios.sh` rejects the same app.
+- [ ] Confirm the IPA and its bundled `starship.o2r` contain no ROM,
+      ROM-derived archive, extracted asset, or signing material.
+- [ ] Publish the checksum beside the IPA.
+- [ ] State prominently that the artifact is ROM-free, unsigned, and requires
+      the user to supply both signing and legally acquired game data.
+
+## Before publishing a signed, installable IPA
 
 - [ ] Build from a clean checkout at a tagged commit.
 - [ ] Use a deliberate distribution bundle identifier and fresh signing
@@ -41,11 +53,12 @@ This is the final gate for a public source snapshot or downloadable IPA.
 
 ## Current blockers
 
-- No physical iPhone or iPad is connected to the development machine.
-- No signing team/profile is available for an installable package.
+- Development-signed builds have been installed and launched on a physical
+  iPhone 14 and 12.9-inch iPad Pro, but no redistributable signing
+  identity/profile is available for a public installable package.
 - Physical-device speaker and interruption behavior remain untested.
 - Physical controller pairing, reconnect, and rumble remain untested.
 - End-to-end regional Voice Pack extraction needs a lawful regional input.
 
 Until those gates are resolved, describe StarshipPad as a source preview with
-an audited unsigned reproducibility artifact—not a finished binary release.
+an audited unsigned preview IPA—not a finished installable binary release.
