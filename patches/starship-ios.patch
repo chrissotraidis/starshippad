@@ -33,7 +33,7 @@ index e7d0e797..18c9ceb8 100644
 -set(PROJECT_ID "dev.net64.game")
 +set(BUNDLE_ID "com.chrissotraidis.starshippad" CACHE STRING "iOS bundle identifier")
 +set(STARSHIPPAD_VERSION "0.1.0" CACHE STRING "StarshipPad release version")
-+set(STARSHIPPAD_BUILD_NUMBER "2" CACHE STRING "StarshipPad build number")
++set(STARSHIPPAD_BUILD_NUMBER "3" CACHE STRING "StarshipPad build number")
 +set(STARSHIPPAD_LICENSE_FILE "" CACHE FILEPATH "StarshipPad MIT license")
 +set(STARSHIPPAD_NOTICES_FILE "" CACHE FILEPATH "StarshipPad third-party notices")
 +set(STARSHIPPAD_APACHE_LICENSE_FILE "" CACHE FILEPATH "Apache License 2.0 text")
@@ -421,7 +421,7 @@ new file mode 100644
 index 00000000..575c93d6
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,1428 @@
+@@ -0,0 +1,1425 @@
 +#import <UIKit/UIKit.h>
 +
 +#include <algorithm>
@@ -1723,12 +1723,9 @@ index 00000000..575c93d6
 +
 +    const CGFloat size = 44.0;
 +    const UIEdgeInsets safe = window.safeAreaInsets;
-+    const BOOL compact = CGRectGetHeight(window.bounds) < 560.0;
-+    const CGFloat rightInset = compact ? MAX(8.0, safe.right * 0.35) : safe.right + 8.0;
-+    const CGFloat topInset = compact ? 16.0 : 52.0;
 +    sMenuButton.frame =
-+        CGRectMake(CGRectGetWidth(window.bounds) - rightInset - size,
-+                   safe.top + topInset, size, size);
++        CGRectMake(CGRectGetWidth(window.bounds) - safe.right - 8.0 - size,
++                   safe.top + 8.0, size, size);
 +    if (sMenuButton.superview != window) {
 +        [sMenuButton removeFromSuperview];
 +        [window addSubview:sMenuButton];
@@ -1910,7 +1907,7 @@ index bc0ccb1f..93e20eab 100644
  
      if (std::filesystem::exists(assets_path)) {
          archiveFiles.push_back(assets_path);
-@@ -170,6 +180,17 @@ GameEngine::GameEngine() {
+@@ -170,8 +180,23 @@ GameEngine::GameEngine() {
      auto audioChannelsSetting = Ship::Context::GetInstance()->GetConfig()->GetCurrentAudioChannelsSetting();
      this->context->Init(archiveFiles, {}, 3, { 32000, 1024, 1680, audioChannelsSetting }, window, controlDeck);
  
@@ -1928,6 +1925,12 @@ index bc0ccb1f..93e20eab 100644
  #ifndef __SWITCH__
      Ship::Context::GetInstance()->GetLogger()->set_level(
          (spdlog::level::level_enum) CVarGetInteger("gDeveloperTools.LogLevel", 1));
+     Ship::Context::GetInstance()->GetLogger()->set_pattern("[%H:%M:%S.%e] [%s:%#] [%l] %v");
++#ifdef __IOS__
++    Ship::Context::GetInstance()->GetLogger()->flush_on(spdlog::level::info);
++    SPDLOG_INFO("StarshipPad diagnostics enabled: info breadcrumbs flush immediately");
++#endif
+ #endif
 @@ -265,6 +286,168 @@ GameEngine::GameEngine() {
      context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
  }
@@ -2137,14 +2140,66 @@ index b937e9db..47d4e296 100644
 \ No newline at end of file
 +#endif
 diff --git a/src/port/Game.cpp b/src/port/Game.cpp
-index ef7894be..b3db47d1 100644
+index ef7894be..a45e57f7 100644
 --- a/src/port/Game.cpp
 +++ b/src/port/Game.cpp
-@@ -29,12 +29,9 @@ void push_frame() {
+@@ -4,6 +4,7 @@
+ #include "Engine.h"
+ 
+ extern "C" {
++#include <sf64context.h>
+ #include <sf64mesg.h>
+     void Main_SetVIMode(void);
+     void Main_Initialize(void);
+@@ -29,12 +30,53 @@ void push_frame() {
      GameEngine::EndAudioFrame();
  }
  
 -#ifdef _WIN32
++#ifdef __IOS__
++struct StarshipPadDiagnosticState {
++    int gameState;
++    int level;
++    int levelPhase;
++    int missionStatus;
++    int playerState;
++    int playerForm;
++    int playerCutsceneState;
++};
++
++static StarshipPadDiagnosticState StarshipPad_CaptureDiagnosticState() {
++    const Player* player = gPlayer;
++    return {
++        static_cast<int>(gGameState),     static_cast<int>(gCurrentLevel),    static_cast<int>(gLevelPhase),
++        static_cast<int>(gMissionStatus), player != nullptr ? static_cast<int>(player[0].state) : -1,
++        player != nullptr ? static_cast<int>(player[0].form) : -1,
++        player != nullptr ? static_cast<int>(player[0].csState) : -1,
++    };
++}
++
++static bool StarshipPad_DiagnosticStateChanged(const StarshipPadDiagnosticState& previous,
++                                               const StarshipPadDiagnosticState& current) {
++    return previous.gameState != current.gameState || previous.level != current.level ||
++           previous.levelPhase != current.levelPhase || previous.missionStatus != current.missionStatus ||
++           previous.playerState != current.playerState || previous.playerForm != current.playerForm ||
++           previous.playerCutsceneState != current.playerCutsceneState;
++}
++
++static void StarshipPad_LogDiagnosticState(const char* reason, uint64_t simulationFrame) {
++    const Player* player = gPlayer;
++    SPDLOG_INFO(
++        "StarshipPad breadcrumb: reason={} frame={} game_state={} level={} phase={} mission={} player_state={} "
++        "form={} cs_state={} cs_timer={} cs_frame={} shields={}",
++        reason, simulationFrame, static_cast<int>(gGameState), static_cast<int>(gCurrentLevel),
++        static_cast<int>(gLevelPhase), static_cast<int>(gMissionStatus),
++        player != nullptr ? static_cast<int>(player[0].state) : -1,
++        player != nullptr ? static_cast<int>(player[0].form) : -1,
++        player != nullptr ? static_cast<int>(player[0].csState) : -1,
++        player != nullptr ? static_cast<int>(player[0].csTimer) : -1, static_cast<int>(gCsFrameCount),
++        player != nullptr ? static_cast<int>(player[0].shields) : -1);
++}
++#endif
++
 +#if defined(_WIN32) || defined(__IOS__)
  int SDL_main(int argc, char **argv) {
  #else
@@ -2154,13 +2209,15 @@ index ef7894be..b3db47d1 100644
  int main(int argc, char *argv[]) {
  #endif
      GameEngine::Create();
-@@ -42,9 +39,29 @@ int main(int argc, char *argv[]) {
+@@ -42,9 +84,41 @@ int main(int argc, char *argv[]) {
      Lib_FillScreen(1);
      Main_Initialize();
      Main_ThreadEntry(NULL);
 +#ifdef __IOS__
 +    uint64_t simulationFrame = 0;
 +    bool wasFrameReady = true;
++    StarshipPadDiagnosticState previousDiagnosticState = StarshipPad_CaptureDiagnosticState();
++    StarshipPad_LogDiagnosticState("session-start", simulationFrame);
 +#endif
      while (WindowIsRunning()) {
 +#ifdef __IOS__
@@ -2179,8 +2236,18 @@ index ef7894be..b3db47d1 100644
          push_frame();
 +#ifdef __IOS__
 +        simulationFrame++;
++        StarshipPadDiagnosticState currentDiagnosticState = StarshipPad_CaptureDiagnosticState();
++        if (StarshipPad_DiagnosticStateChanged(previousDiagnosticState, currentDiagnosticState)) {
++            StarshipPad_LogDiagnosticState("state-change", simulationFrame);
++            previousDiagnosticState = currentDiagnosticState;
++        } else if ((simulationFrame % 300) == 0) {
++            StarshipPad_LogDiagnosticState("heartbeat", simulationFrame);
++        }
 +#endif
      }
++#ifdef __IOS__
++    StarshipPad_LogDiagnosticState("session-end", simulationFrame);
++#endif
      GameEngine::Instance->Destroy();
      return 0;
 -}
