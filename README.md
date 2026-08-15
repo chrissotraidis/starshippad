@@ -12,7 +12,7 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2"><img alt="Unsigned IPA Preview 2 available" src="https://img.shields.io/badge/IPA-preview%202%20available-FF9F0A"></a>
+  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3"><img alt="Unsigned IPA Preview 3 available" src="https://img.shields.io/badge/IPA-preview%203%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
@@ -39,17 +39,17 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Reproducible unsigned `.ipa` | **Preview 2 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
+| Reproducible unsigned `.ipa` | **Preview 3 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
-## Download Preview 2
+## Download Preview 3
 
-[Download StarshipPad Preview 2 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.2/StarshipPad-v0.1.0-preview.2-unsigned.ipa)
+[Download StarshipPad Preview 3 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.3/StarshipPad-v0.1.0-preview.3-unsigned.ipa)
 or review the
-[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2).
+[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3).
 A separate
-[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.2/StarshipPad-v0.1.0-preview.2-unsigned.ipa.sha256)
+[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.3/StarshipPad-v0.1.0-preview.3-unsigned.ipa.sha256)
 is published beside the IPA.
 
 This preview is ROM-free and unsigned. It is **not directly installable** on a
@@ -74,6 +74,13 @@ iPhoneOS build and ROM-free package audit also pass. The workflow badge above
 shows the current hosted-CI result; detailed engineering evidence and open
 hardware gates remain recorded in
 [`docs/remaining-work.md`](docs/remaining-work.md).
+
+Preview 3 immediately flushes compact iOS diagnostic breadcrumbs to the
+existing rolling `Documents/logs/Starship.log`. Session, lifecycle, game,
+mission, player, and cutscene state changes are recorded alongside periodic
+heartbeats. The signed build was installed and run on the physical iPad with
+the ROM, extracted archive, save, touch configuration, and preferences
+preserved byte-for-byte across the in-place update.
 
 ## Get started
 
@@ -128,7 +135,9 @@ and package-audit details.
 
 ## First flight
 
-StarshipPad never downloads or bundles game data.
+StarshipPad never downloads or bundles game data. Use a supported US
+Star Fox 64 1.0 or 1.1 ROM to create the base local archive; supported
+Japanese, European, Spanish, and Chinese ROMs are optional voice-pack inputs.
 
 1. Launch StarshipPad once so iOS creates its Files-visible folder.
 2. Open **Files → On My iPhone/iPad → StarshipPad**.
@@ -138,10 +147,9 @@ StarshipPad never downloads or bundles game data.
 5. Keep the app foregrounded while it creates the private local archive.
 6. Press the on-screen Start control when the title screen appears.
 
-US inputs create the base local archive. Supported JP, EU, Spanish, and CN
-inputs are routed to the Voice Pack path instead of being treated as an
-unsupported base ROM. Extraction and generated data stay in the app
-container. **Settings → Language → Voice Pack** scans only for a supported
+Supported regional inputs are routed to the Voice Pack path instead of being
+treated as an unsupported base ROM. Extraction and generated data stay in the
+app container. **Settings → Language → Voice Pack** scans only for a supported
 regional ROM and installs it in the background; it never rebuilds the US base
 archive.
 
@@ -268,6 +276,7 @@ game asset is included. Capture provenance and hashes are in
 | Regions | US base path plus JP/EU/Spanish/CN Voice Pack routing |
 | Touch | Complete default flight deck plus opt-in phone/tablet layouts; compact menu scrolling and the revised phone stack pass in Simulator |
 | Lifecycle | Background pause/config flush pass in Simulator; in-place device updates preserve local app data |
+| Diagnostics | Rolling iOS log flushes session/state breadcrumbs and periodic heartbeats for post-crash context; Apple `.ips` reports remain the native stack source |
 | Controllers | Native GameController/SDL path for compatible Bluetooth or USB extended gamepads, with Player 1 takeover and automatic touch fallback; physical-model, reconnect, and rumble matrix remains open |
 | Packaging | ROM-free port archive, unsigned IPA, forbidden-file and signed-package gates |
 
@@ -319,7 +328,7 @@ ROM-derived game archive.
 <summary><strong>Where is the IPA?</strong></summary>
 
 The audited, ROM-free
-[Preview 2 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.2)
+[Preview 3 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3)
 is available from GitHub Releases. It demonstrates reproducibility but is not
 installable as published: you must sign it with your own Apple development
 identity and provisioning profile. No official signed download is available.
