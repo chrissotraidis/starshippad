@@ -40,7 +40,7 @@ bundle_build="$(plutil -extract CFBundleVersion raw "$APP/Info.plist")"
     fail "placeholder bundle identifier remains: $bundle_identifier"
 [ "$bundle_version" = "${STARSHIPPAD_VERSION:-0.1.0}" ] ||
     fail "unexpected release version: $bundle_version"
-[ "$bundle_build" = "${STARSHIPPAD_BUILD_NUMBER:-4}" ] ||
+[ "$bundle_build" = "${STARSHIPPAD_BUILD_NUMBER:-5}" ] ||
     fail "unexpected build number: $bundle_build"
 
 local_path="$(strings -a "$APP/StarshipPad" |
