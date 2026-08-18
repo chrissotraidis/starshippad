@@ -1105,8 +1105,9 @@ Those hardware gates remain explicitly open on this machine.
   touch-overlay transitions with hardware, and two-controller ownership remain
   explicit physical acceptance gates.
 - Release artifact: `StarshipPad-v0.1.0-preview.4-unsigned.ipa` (ROM-free,
-  unsigned, self-signing required). SHA-256 is recorded in the Preview 4 GitHub
-  release and its adjacent checksum asset.
+  unsigned, self-signing required), SHA-256
+  `f3d4374a93fc654a2f12c515cdb5da1bc451285af91497236947c30d199b2117`.
+  The same value is recorded in the adjacent checksum asset.
 
 ## Open-question resolution ledger
 

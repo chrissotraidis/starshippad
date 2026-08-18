@@ -52,6 +52,8 @@ A separate
 [SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.4/StarshipPad-v0.1.0-preview.4-unsigned.ipa.sha256)
 is published beside the IPA.
 
+SHA-256: `f3d4374a93fc654a2f12c515cdb5da1bc451285af91497236947c30d199b2117`
+
 This preview is ROM-free and unsigned. It is **not directly installable** on a
 standard iPhone or iPad as downloaded; you must sign it with your own Apple
 development identity and provisioning profile. Star Fox 64 game data is never
