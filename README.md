@@ -12,7 +12,7 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4"><img alt="Unsigned IPA Preview 4 available" src="https://img.shields.io/badge/IPA-preview%204%20available-FF9F0A"></a>
+  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5"><img alt="Unsigned IPA Preview 5 available" src="https://img.shields.io/badge/IPA-preview%205%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
@@ -39,20 +39,20 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Unsigned `.ipa` | **Preview 4 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
+| Unsigned `.ipa` | **Preview 5 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
-## Download Preview 4
+## Download Preview 5
 
-[Download StarshipPad Preview 4 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.4/StarshipPad-v0.1.0-preview.4-unsigned.ipa)
+[Download StarshipPad Preview 5 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.5/StarshipPad-v0.1.0-preview.5-unsigned.ipa)
 or review the
-[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4).
+[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5).
 A separate
-[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.4/StarshipPad-v0.1.0-preview.4-unsigned.ipa.sha256)
+[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.5/StarshipPad-v0.1.0-preview.5-unsigned.ipa.sha256)
 is published beside the IPA.
 
-SHA-256: `f3d4374a93fc654a2f12c515cdb5da1bc451285af91497236947c30d199b2117`
+SHA-256: `a57ed4bd149e8cfaf791b620681c69aeb32371d79d7242c18845832c65b57892`
 
 This preview is ROM-free and unsigned. It is **not directly installable** on a
 standard iPhone or iPad as downloaded; you must sign it with your own Apple
@@ -77,7 +77,7 @@ shows the current hosted-CI result; detailed engineering evidence and open
 hardware gates remain recorded in
 [`docs/remaining-work.md`](docs/remaining-work.md).
 
-Preview 4 retains the compact iOS diagnostic breadcrumbs introduced in
+Preview 5 retains the compact iOS diagnostic breadcrumbs introduced in
 Preview 3 and repairs stale SDL2 controller ownership in LibUltraShip's
 existing ControlDeck. Valid connected devices retain their player port;
 detached handles are closed, held input is cleared, a sole returning physical
@@ -344,7 +344,7 @@ ROM-derived game archive.
 <summary><strong>Where is the IPA?</strong></summary>
 
 The audited, ROM-free
-[Preview 4 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4)
+[Preview 5 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5)
 is available from GitHub Releases. It is an audited ROM-free package but is not
 installable as published: you must sign it with your own Apple development
 identity and provisioning profile. No official signed download is available.

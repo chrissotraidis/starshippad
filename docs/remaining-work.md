@@ -1109,6 +1109,16 @@ Those hardware gates remain explicitly open on this machine.
   `f3d4374a93fc654a2f12c515cdb5da1bc451285af91497236947c30d199b2117`.
   The same value is recorded in the adjacent checksum asset.
 
+### 2026-08-18 — Preview 5 IPA refresh
+
+- Preview 5 advances the iOS build number to `5` and republishes the merged
+  controller repair without further input-code changes.
+- The controller regression, all 11 route cases, repository safety, unsigned
+  arm64 iPhoneOS Release build, app audit, and package audit pass.
+- Release artifact: `StarshipPad-v0.1.0-preview.5-unsigned.ipa` (ROM-free,
+  unsigned, self-signing required), SHA-256
+  `a57ed4bd149e8cfaf791b620681c69aeb32371d79d7242c18845832c65b57892`.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
