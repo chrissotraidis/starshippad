@@ -249,6 +249,95 @@ index fb82faf9..f2f40b7f 100644
 +    std::atomic<bool> mPaused = false;
  };
  } // namespace Ship
+diff --git a/src/controller/controldeck/ControlDeck.cpp b/src/controller/controldeck/ControlDeck.cpp
+index 6d44df4a..9eba7593 100644
+--- a/src/controller/controldeck/ControlDeck.cpp
++++ b/src/controller/controldeck/ControlDeck.cpp
+@@ -25,17 +25,25 @@ void ControlDeck::Init(uint8_t* controllerBits) {
+     mControllerBits = controllerBits;
+     *mControllerBits |= 1 << 0;
+ 
++    mConnectedPhysicalDeviceManager->ReconcileConnectedSDLGamepads("startup");
++
+     for (auto port : mPorts) {
+         if (port->GetConnectedController()->HasConfig()) {
+             port->GetConnectedController()->ReloadAllMappingsFromConfig();
+         }
+     }
+ 
+-    // if we don't have a config for controller 1, set default bindings
+-    if (!mPorts[0]->GetConnectedController()->HasConfig()) {
+-        mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::Keyboard);
+-        mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::Mouse);
+-        mPorts[0]->GetConnectedController()->AddDefaultMappings(PhysicalDeviceType::SDLGamepad);
++    // Give unconfigured ports SDL defaults so automatically assigned additional
++    // gamepads are immediately usable. Keyboard and mouse remain Player 1 only.
++    for (size_t port = 0; port < mPorts.size(); port++) {
++        const auto controller = mPorts[port]->GetConnectedController();
++        if (!controller->HasConfig()) {
++            if (port == 0) {
++                controller->AddDefaultMappings(PhysicalDeviceType::Keyboard);
++                controller->AddDefaultMappings(PhysicalDeviceType::Mouse);
++            }
++            controller->AddDefaultMappings(PhysicalDeviceType::SDLGamepad);
++        }
+     }
+ }
+ 
+diff --git a/src/controller/controldevice/controller/Controller.cpp b/src/controller/controldevice/controller/Controller.cpp
+index b4718817..3d42447a 100644
+--- a/src/controller/controldevice/controller/Controller.cpp
++++ b/src/controller/controldevice/controller/Controller.cpp
+@@ -9,6 +9,8 @@
+ #endif
+ #include <spdlog/spdlog.h>
+ #include "utils/StringHelper.h"
++#include "Context.h"
++#include "controller/controldeck/ControlDeck.h"
+ 
+ #define M_TAU 6.2831853071795864769252867665590057 // 2 * pi
+ #define MINIMUM_RADIUS_TO_MAP_NOTCH 0.9
+@@ -219,6 +221,14 @@ void Controller::ReadToPad(void* pad) {
+ }
+ 
+ void Controller::ReadToOSContPad(OSContPad* pad) {
++    const auto physicalDeviceManager =
++        Ship::Context::GetInstance()->GetControlDeck()->GetConnectedPhysicalDeviceManager();
++    const uint64_t physicalDeviceGeneration = physicalDeviceManager->GetGeneration();
++    if (mPhysicalDeviceGeneration != physicalDeviceGeneration) {
++        mPadBuffer.clear();
++        mPhysicalDeviceGeneration = physicalDeviceGeneration;
++    }
++
+     OSContPad padToBuffer = { 0 };
+ 
+     // Button Inputs
+@@ -233,6 +243,14 @@ void Controller::ReadToOSContPad(OSContPad* pad) {
+     // Gyro
+     GetGyro()->UpdatePad(padToBuffer.gyro_x, padToBuffer.gyro_y);
+ 
++    // A mapping read can discover a detached handle and reconcile it. Drop
++    // buffered held input in that same frame rather than one frame later.
++    const uint64_t reconciledGeneration = physicalDeviceManager->GetGeneration();
++    if (mPhysicalDeviceGeneration != reconciledGeneration) {
++        mPadBuffer.clear();
++        mPhysicalDeviceGeneration = reconciledGeneration;
++    }
++
+     mPadBuffer.push_front(padToBuffer);
+     if (pad != nullptr) {
+         auto& padFromBuffer =
+diff --git a/src/controller/controldevice/controller/Controller.h b/src/controller/controldevice/controller/Controller.h
+index 3c59da4b..a7d1c9af 100644
+--- a/src/controller/controldevice/controller/Controller.h
++++ b/src/controller/controldevice/controller/Controller.h
+@@ -79,5 +79,6 @@ class Controller : public Ship::Controller {
+     void ReadToOSContPad(OSContPad* pad);
+ 
+     std::deque<OSContPad> mPadBuffer;
++    uint64_t mPhysicalDeviceGeneration = 0;
+ };
+ } // namespace LUS
 diff --git a/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp b/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp
 index 986af551..8be97bbd 100644
 --- a/src/controller/controldevice/controller/mapping/ControllerDefaultMappings.cpp
@@ -262,6 +351,270 @@ index 986af551..8be97bbd 100644
      mDefaultKeyboardKeyToButtonMappings[BTN_CUP] = { KbScancode::LUS_KB_ARROWKEY_UP };
      mDefaultKeyboardKeyToButtonMappings[BTN_CDOWN] = { KbScancode::LUS_KB_ARROWKEY_DOWN };
      mDefaultKeyboardKeyToButtonMappings[BTN_CLEFT] = { KbScancode::LUS_KB_ARROWKEY_LEFT };
+diff --git a/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp b/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp
+index 51e2efa6..23665233 100644
+--- a/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp
++++ b/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp
+@@ -1,18 +1,35 @@
+ #include "ConnectedPhysicalDeviceManager.h"
++#include <spdlog/spdlog.h>
+ 
+ namespace Ship {
+ ConnectedPhysicalDeviceManager::ConnectedPhysicalDeviceManager() {
+ }
+ 
+ ConnectedPhysicalDeviceManager::~ConnectedPhysicalDeviceManager() {
++    while (!mConnectedSDLGamepads.empty()) {
++        ReleaseGamepad(mConnectedSDLGamepads.begin()->first, "shutdown");
++    }
+ }
+ 
+ std::unordered_map<int32_t, SDL_GameController*>
+ ConnectedPhysicalDeviceManager::GetConnectedSDLGamepadsForPort(uint8_t portIndex) {
++    bool foundInvalidGamepad = false;
++    for (const auto& [instanceId, gamepad] : mConnectedSDLGamepads) {
++        (void)instanceId;
++        if (gamepad == nullptr || SDL_GameControllerGetAttached(gamepad) != SDL_TRUE) {
++            foundInvalidGamepad = true;
++            break;
++        }
++    }
++    if (foundInvalidGamepad) {
++        ReconcileConnectedSDLGamepads("poll-invalid");
++    }
++
+     std::unordered_map<int32_t, SDL_GameController*> result;
+ 
+     for (const auto& [instanceId, gamepad] : mConnectedSDLGamepads) {
+-        if (!PortIsIgnoringInstanceId(portIndex, instanceId)) {
++        if (gamepad != nullptr && SDL_GameControllerGetAttached(gamepad) == SDL_TRUE &&
++            !PortIsIgnoringInstanceId(portIndex, instanceId)) {
+             result[instanceId] = gamepad;
+         }
+     }
+@@ -41,33 +58,150 @@ void ConnectedPhysicalDeviceManager::UnignoreInstanceIdForPort(uint8_t portIndex
+ }
+ 
+ void ConnectedPhysicalDeviceManager::HandlePhysicalDeviceConnect(int32_t sdlDeviceIndex) {
+-    RefreshConnectedSDLGamepads();
++    SPDLOG_INFO("Controller reconciliation queued: reason=device-added device_index={}", sdlDeviceIndex);
++    ReconcileConnectedSDLGamepads("device-added");
+ }
+ 
+ void ConnectedPhysicalDeviceManager::HandlePhysicalDeviceDisconnect(int32_t sdlJoystickInstanceId) {
+-    RefreshConnectedSDLGamepads();
++    SPDLOG_INFO("Controller reconciliation queued: reason=device-removed instance={}", sdlJoystickInstanceId);
++    ReconcileConnectedSDLGamepads("device-removed");
+ }
+ 
+-void ConnectedPhysicalDeviceManager::RefreshConnectedSDLGamepads() {
+-    mConnectedSDLGamepads.clear();
+-    mConnectedSDLGamepadNames.clear();
++int32_t ConnectedPhysicalDeviceManager::FindFirstFreePort(bool assigningVirtualDevice) const {
++    for (uint8_t port = 0; port < 4; port++) {
++        bool occupied = false;
++        for (const auto& [instanceId, gamepad] : mConnectedSDLGamepads) {
++            const bool isVirtual = mConnectedSDLGamepadIsVirtual.contains(instanceId) &&
++                                   mConnectedSDLGamepadIsVirtual.at(instanceId);
++            if (!mIgnoredInstanceIds.contains(port) || !mIgnoredInstanceIds.at(port).contains(instanceId)) {
++                if (assigningVirtualDevice || !isVirtual) {
++                    occupied = true;
++                    break;
++                }
++            }
++        }
++        if (!occupied) {
++            return port;
++        }
++    }
++    return -1;
++}
++
++void ConnectedPhysicalDeviceManager::ReleaseGamepad(int32_t instanceId, const char* reason) {
++    const auto gamepadIt = mConnectedSDLGamepads.find(instanceId);
++    if (gamepadIt == mConnectedSDLGamepads.end()) {
++        return;
++    }
++
++    std::string name = "unknown";
++    const auto nameIt = mConnectedSDLGamepadNames.find(instanceId);
++    if (nameIt != mConnectedSDLGamepadNames.end()) {
++        name = nameIt->second;
++    }
++
++    int32_t assignedPort = -1;
++    for (uint8_t port = 0; port < 4; port++) {
++        if (!PortIsIgnoringInstanceId(port, instanceId)) {
++            assignedPort = port;
++            break;
++        }
++        mIgnoredInstanceIds[port].erase(instanceId);
++    }
++
++    SPDLOG_INFO("Controller released: reason={} instance={} player={} name={}", reason, instanceId,
++                assignedPort >= 0 ? assignedPort + 1 : 0, name);
++    if (gamepadIt->second != nullptr) {
++        SDL_GameControllerClose(gamepadIt->second);
++    }
++    mConnectedSDLGamepads.erase(gamepadIt);
++    mConnectedSDLGamepadNames.erase(instanceId);
++    mConnectedSDLGamepadIsVirtual.erase(instanceId);
++    for (uint8_t port = 0; port < 4; port++) {
++        mIgnoredInstanceIds[port].erase(instanceId);
++    }
++}
++
++bool ConnectedPhysicalDeviceManager::ReconcileConnectedSDLGamepads(const char* reason) {
++    std::unordered_map<int32_t, int32_t> currentDeviceIndices;
+ 
+     for (int32_t i = 0; i < SDL_NumJoysticks(); i++) {
+-        // skip if this SDL joystick isn't a Gamepad
+-        if (!SDL_IsGameController(i)) {
++        if (SDL_IsGameController(i) != SDL_TRUE) {
+             continue;
+         }
+ 
+-        auto gamepad = SDL_GameControllerOpen(i);
+-        auto instanceId = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamepad));
+-        auto name = SDL_GameControllerName(gamepad);
++        const int32_t instanceId = SDL_JoystickGetDeviceInstanceID(i);
++        if (instanceId < 0) {
++            SPDLOG_WARN("Controller enumeration failed: reason={} device_index={} error={}", reason, i,
++                        SDL_GetError());
++            continue;
++        }
++        currentDeviceIndices[instanceId] = i;
++    }
++
++    bool changed = false;
++    std::vector<int32_t> staleInstanceIds;
++    for (const auto& [instanceId, gamepad] : mConnectedSDLGamepads) {
++        const bool attached = gamepad != nullptr && SDL_GameControllerGetAttached(gamepad) == SDL_TRUE;
++        const bool identityMatches = attached &&
++                                     SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamepad)) == instanceId;
++        if (!currentDeviceIndices.contains(instanceId) || !identityMatches) {
++            staleInstanceIds.push_back(instanceId);
++        }
++    }
++    for (const int32_t instanceId : staleInstanceIds) {
++        ReleaseGamepad(instanceId, reason);
++        changed = true;
++    }
++
++    for (const auto& [instanceId, deviceIndex] : currentDeviceIndices) {
++        if (mConnectedSDLGamepads.contains(instanceId)) {
++            continue;
++        }
++
++        SDL_GameController* gamepad = SDL_GameControllerOpen(deviceIndex);
++        if (gamepad == nullptr) {
++            SPDLOG_ERROR("Controller open failed: reason={} device_index={} error={}", reason, deviceIndex,
++                         SDL_GetError());
++            continue;
++        }
++        const int32_t openedInstanceId = SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(gamepad));
++        if (openedInstanceId != instanceId) {
++            SPDLOG_ERROR("Controller identity mismatch: reason={} device_index={} expected={} opened={}", reason,
++                         deviceIndex, instanceId, openedInstanceId);
++            SDL_GameControllerClose(gamepad);
++            continue;
++        }
++
++        const char* rawName = SDL_GameControllerName(gamepad);
++        const std::string name = rawName == nullptr ? "unknown" : rawName;
++        const bool isVirtual = SDL_JoystickIsVirtual(deviceIndex) == SDL_TRUE;
++        const int32_t assignedPort = FindFirstFreePort(isVirtual);
+ 
+         mConnectedSDLGamepads[instanceId] = gamepad;
+         mConnectedSDLGamepadNames[instanceId] = name;
++        mConnectedSDLGamepadIsVirtual[instanceId] = isVirtual;
+ 
+-        for (uint8_t port = 1; port < 4; port++) {
++        for (uint8_t port = 0; port < 4; port++) {
+             mIgnoredInstanceIds[port].insert(instanceId);
+         }
++        if (assignedPort >= 0) {
++            mIgnoredInstanceIds[assignedPort].erase(instanceId);
++        }
++
++        SPDLOG_INFO("Controller assigned: reason={} instance={} player={} device_index={} virtual={} name={}", reason,
++                    instanceId, assignedPort >= 0 ? assignedPort + 1 : 0, deviceIndex, isVirtual, name);
++        changed = true;
++    }
++
++    if (changed) {
++        mGeneration++;
++        SPDLOG_INFO("Controller reconciliation complete: reason={} connected={} generation={}", reason,
++                    mConnectedSDLGamepads.size(), mGeneration);
+     }
++    return changed;
++}
++
++uint64_t ConnectedPhysicalDeviceManager::GetGeneration() const {
++    return mGeneration;
+ }
+ } // namespace Ship
+diff --git a/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.h b/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.h
+index 89c05b55..0e410ec6 100644
+--- a/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.h
++++ b/src/controller/physicaldevice/ConnectedPhysicalDeviceManager.h
+@@ -4,6 +4,7 @@
+ #include <unordered_set>
+ #include <vector>
+ #include <string>
++#include <cstdint>
+ #include <SDL2/SDL.h>
+ 
+ namespace Ship {
+@@ -22,11 +23,17 @@ class ConnectedPhysicalDeviceManager {
+ 
+     void HandlePhysicalDeviceConnect(int32_t sdlDeviceIndex);
+     void HandlePhysicalDeviceDisconnect(int32_t sdlJoystickInstanceId);
+-    void RefreshConnectedSDLGamepads();
++    bool ReconcileConnectedSDLGamepads(const char* reason);
++    uint64_t GetGeneration() const;
+ 
+   private:
++    int32_t FindFirstFreePort(bool assigningVirtualDevice) const;
++    void ReleaseGamepad(int32_t instanceId, const char* reason);
++
+     std::unordered_map<int32_t, SDL_GameController*> mConnectedSDLGamepads;
+     std::unordered_map<int32_t, std::string> mConnectedSDLGamepadNames;
++    std::unordered_map<int32_t, bool> mConnectedSDLGamepadIsVirtual;
+     std::unordered_map<uint8_t, std::unordered_set<int32_t>> mIgnoredInstanceIds;
++    uint64_t mGeneration = 0;
+ };
+ } // namespace Ship
+diff --git a/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.cpp b/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.cpp
+index 9ca6c0db..7d934aa0 100644
+--- a/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.cpp
++++ b/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.cpp
+@@ -30,5 +30,12 @@ void SDLAddRemoveDeviceEventHandler::UpdateElement() {
+         Context::GetInstance()->GetControlDeck()->GetConnectedPhysicalDeviceManager()->HandlePhysicalDeviceDisconnect(
+             event.cdevice.which);
+     }
++
++    const uint32_t now = SDL_GetTicks();
++    if (now - mLastActiveReconcile >= 1000) {
++        mLastActiveReconcile = now;
++        Context::GetInstance()->GetControlDeck()->GetConnectedPhysicalDeviceManager()
++            ->ReconcileConnectedSDLGamepads("active-check");
++    }
+ }
+ } // namespace Ship
+diff --git a/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.h b/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.h
+index 1b403d70..8e1dea2b 100644
+--- a/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.h
++++ b/src/controller/physicaldevice/SDLAddRemoveDeviceEventHandler.h
+@@ -13,5 +13,8 @@ class SDLAddRemoveDeviceEventHandler : public GuiWindow {
+     void InitElement() override;
+     void DrawElement() override;
+     void UpdateElement() override;
++
++  private:
++    uint32_t mLastActiveReconcile = 0;
+ };
+ } // namespace Ship
 diff --git a/src/graphic/Fast3D/Fast3dWindow.cpp b/src/graphic/Fast3D/Fast3dWindow.cpp
 index ca3abf0a..10687cce 100644
 --- a/src/graphic/Fast3D/Fast3dWindow.cpp
@@ -335,7 +688,7 @@ index cbb3a2a3..49a4e779 100644
      int mWindowWidth = 640;
      int mWindowHeight = 480;
 diff --git a/src/graphic/Fast3D/backends/gfx_sdl2.cpp b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
-index 1387e280..bcdffe1e 100644
+index 1387e280..546f92c9 100644
 --- a/src/graphic/Fast3D/backends/gfx_sdl2.cpp
 +++ b/src/graphic/Fast3D/backends/gfx_sdl2.cpp
 @@ -9,6 +9,11 @@
@@ -398,10 +751,14 @@ index 1387e280..bcdffe1e 100644
      // Implement fullscreening with native macOS APIs
      if (on != isNativeMacOSFullscreenActive(mWnd)) {
          toggleNativeMacOSFullscreen(mWnd);
-@@ -594,6 +623,34 @@ void GfxWindowBackendSDL2::HandleSingleEvent(SDL_Event& event) {
+@@ -594,6 +623,40 @@ void GfxWindowBackendSDL2::HandleSingleEvent(SDL_Event& event) {
          case SDL_DROPFILE:
              Ship::Context::GetInstance()->GetFileDropMgr()->SetDroppedFile(event.drop.file);
              break;
++        case SDL_CONTROLLERDEVICEREMAPPED:
++            Ship::Context::GetInstance()->GetControlDeck()->GetConnectedPhysicalDeviceManager()
++                ->ReconcileConnectedSDLGamepads("device-remapped");
++            break;
 +#ifdef __IOS__
 +        case SDL_APP_WILLENTERBACKGROUND:
 +            mIsBackgrounded = true;
@@ -416,9 +773,11 @@ index 1387e280..bcdffe1e 100644
 +            SPDLOG_INFO("StarshipPad lifecycle: will-enter-foreground");
 +            break;
 +        case SDL_APP_DIDENTERFOREGROUND:
++            Ship::Context::GetInstance()->GetControlDeck()->GetConnectedPhysicalDeviceManager()
++                ->ReconcileConnectedSDLGamepads("foreground");
 +            SetIOSAudioPaused(false);
 +            mIsBackgrounded = false;
-+            SPDLOG_INFO("StarshipPad lifecycle: did-enter-foreground audio_paused=false");
++            SPDLOG_INFO("StarshipPad lifecycle: did-enter-foreground audio_paused=false controller_reconciled=true");
 +            break;
 +        case SDL_APP_LOWMEMORY:
 +            SPDLOG_WARN("StarshipPad lifecycle: low-memory");
@@ -433,7 +792,7 @@ index 1387e280..bcdffe1e 100644
          case SDL_QUIT:
              Close();
              break;
-@@ -611,7 +668,7 @@ void GfxWindowBackendSDL2::HandleEvents() {
+@@ -611,7 +674,7 @@ void GfxWindowBackendSDL2::HandleEvents() {
      }
  
      // resync fullscreen state
@@ -442,7 +801,7 @@ index 1387e280..bcdffe1e 100644
      auto nextFullscreenState = isNativeMacOSFullscreenActive(mWnd);
      if (mFullScreen != nextFullscreenState) {
          mFullScreen = nextFullscreenState;
-@@ -623,7 +680,11 @@ void GfxWindowBackendSDL2::HandleEvents() {
+@@ -623,7 +686,11 @@ void GfxWindowBackendSDL2::HandleEvents() {
  }
  
  bool GfxWindowBackendSDL2::IsFrameReady() {

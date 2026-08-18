@@ -5,6 +5,7 @@ This is the final gate for a public source snapshot or downloadable IPA.
 ## Every public source update
 
 - [ ] `scripts/check-repo-safety.sh` passes.
+- [ ] `scripts/test-controller-reconnect.sh` passes.
 - [ ] The three pinned source revisions replay without manual edits.
 - [ ] All maintained patches apply, pass `git diff --check`, and
       reverse-apply from the exact pins.

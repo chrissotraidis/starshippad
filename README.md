@@ -12,7 +12,7 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3"><img alt="Unsigned IPA Preview 3 available" src="https://img.shields.io/badge/IPA-preview%203%20available-FF9F0A"></a>
+  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4"><img alt="Unsigned IPA Preview 4 available" src="https://img.shields.io/badge/IPA-preview%204%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
@@ -39,18 +39,20 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Reproducible unsigned `.ipa` | **Preview 3 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
+| Unsigned `.ipa` | **Preview 4 available** | ROM-free download for advanced users to sign themselves; it cannot use the standard device-install path as published |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
-## Download Preview 3
+## Download Preview 4
 
-[Download StarshipPad Preview 3 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.3/StarshipPad-v0.1.0-preview.3-unsigned.ipa)
+[Download StarshipPad Preview 4 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.4/StarshipPad-v0.1.0-preview.4-unsigned.ipa)
 or review the
-[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3).
+[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4).
 A separate
-[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.3/StarshipPad-v0.1.0-preview.3-unsigned.ipa.sha256)
+[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.4/StarshipPad-v0.1.0-preview.4-unsigned.ipa.sha256)
 is published beside the IPA.
+
+SHA-256: `f3d4374a93fc654a2f12c515cdb5da1bc451285af91497236947c30d199b2117`
 
 This preview is ROM-free and unsigned. It is **not directly installable** on a
 standard iPhone or iPad as downloaded; you must sign it with your own Apple
@@ -75,12 +77,21 @@ shows the current hosted-CI result; detailed engineering evidence and open
 hardware gates remain recorded in
 [`docs/remaining-work.md`](docs/remaining-work.md).
 
-Preview 3 immediately flushes compact iOS diagnostic breadcrumbs to the
+Preview 4 retains the compact iOS diagnostic breadcrumbs introduced in
+Preview 3 and repairs stale SDL2 controller ownership in LibUltraShip's
+existing ControlDeck. Valid connected devices retain their player port;
+detached handles are closed, held input is cleared, a sole returning physical
+controller reclaims Player 1, and additional controllers take the next free
+port. Reconciliation runs at startup, controller events, foreground resume,
+and a bounded active check without restarting the controller subsystem.
+
+The rolling iOS diagnostics flush immediately to the
 existing rolling `Documents/logs/Starship.log`. Session, lifecycle, game,
 mission, player, and cutscene state changes are recorded alongside periodic
 heartbeats. The signed build was installed and run on the physical iPad with
-the ROM, extracted archive, save, touch configuration, and preferences
-preserved byte-for-byte across the in-place update.
+the ROM, extracted archive, save, touch layout, and preferences preserved;
+the controller configuration retained every existing value and added default
+SDL mappings for the newly usable secondary player ports.
 
 ## Get started
 
@@ -163,15 +174,20 @@ then launch the game—there is no StarshipPad-specific driver or pairing step.
   SDL-compatible extended gamepads use the standard controller path.
 - **Automatic takeover:** a physical controller becomes Player 1 and analog
   touch pauses; disconnecting it restores analog touch automatically.
+- **Stable reconnect:** stale handles are closed, held buttons and axes are
+  released, and a returning controller reclaims its available player port.
+- **Multiple players:** additional physical controllers take the next free
+  player port without moving Player 1.
 - **Native mapping:** review or rebind controls under
   **Settings → Controller → Controller Mapping**.
 - **Touch stays available:** the visible touch buttons continue through their
   keyboard fallback while a physical controller is connected.
 
 Compatibility ultimately depends on iOS recognizing the device and exposing
-an Extended Gamepad profile. The native path and automatic touch fallback are
-implemented and Simulator-tested; individual physical models,
-disconnect/reconnect, and rumble remain hardware-validation items.
+an Extended Gamepad profile. Deterministic fake-SDL coverage proves ownership,
+neutral input, and foreground reconciliation; individual physical Bluetooth,
+wired, natural-sleep, full-mapping, rumble, and two-controller scenarios remain
+hardware-validation items.
 
 ## Touch controls
 
@@ -277,7 +293,7 @@ game asset is included. Capture provenance and hashes are in
 | Touch | Complete default flight deck plus opt-in phone/tablet layouts; compact menu scrolling and the revised phone stack pass in Simulator |
 | Lifecycle | Background pause/config flush pass in Simulator; in-place device updates preserve local app data |
 | Diagnostics | Rolling iOS log flushes session/state breadcrumbs and periodic heartbeats for post-crash context; Apple `.ips` reports remain the native stack source |
-| Controllers | Native GameController/SDL path for compatible Bluetooth or USB extended gamepads, with Player 1 takeover and automatic touch fallback; physical-model, reconnect, and rumble matrix remains open |
+| Controllers | SDL2 through LibUltraShip ControlDeck and Apple's GameController backend; stale ownership, held-input release, stable ports, foreground reconciliation, and automatic touch fallback are regression-tested; the physical-controller matrix remains open |
 | Packaging | ROM-free port archive, unsigned IPA, forbidden-file and signed-package gates |
 
 ## Supported game
@@ -328,8 +344,8 @@ ROM-derived game archive.
 <summary><strong>Where is the IPA?</strong></summary>
 
 The audited, ROM-free
-[Preview 3 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.3)
-is available from GitHub Releases. It demonstrates reproducibility but is not
+[Preview 4 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.4)
+is available from GitHub Releases. It is an audited ROM-free package but is not
 installable as published: you must sign it with your own Apple development
 identity and provisioning profile. No official signed download is available.
 </details>
