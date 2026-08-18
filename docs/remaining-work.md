@@ -1064,6 +1064,50 @@ Those hardware gates remain explicitly open on this machine.
   changing accepted touch geometry or bindings. It does not replace open
   physical controller, audio-route, thermal, or sustained-performance gates.
 
+### 2026-08-18 — SDL2 controller reconciliation and Preview 4
+
+- Backend ownership is LibUltraShip's SDL2 `ConnectedPhysicalDeviceManager`
+  under the engine-managed ControlDeck; Apple GameController supplies iOS
+  devices through SDL, and StarshipPad's analog touch stick is an SDL virtual
+  controller. StarshipPad does not own a PaperPad-style app-level handle.
+- The pinned manager relied on add/remove events, kept unchecked
+  `SDL_GameController*` values, did not close replaced handles, performed no
+  foreground reconciliation, and routed every newly seen controller to
+  Player 1. A missed sleep/background removal could therefore leave stale
+  ownership until another event happened.
+- The targeted patch reconciles the existing manager against current SDL
+  enumeration and `SDL_GameControllerGetAttached()`, preserves valid
+  instance/port ownership, closes stale handles, clears buffered held input,
+  assigns physical devices to the first free port, and keeps StarshipPad's
+  virtual-touch takeover behavior. Reconciliation runs at startup,
+  add/remove/remap, foreground resume, and once per active second.
+- `scripts/test-controller-reconnect.sh` deterministically passes missed
+  removal with a held button and axis, neutral input afterward, sole-controller
+  Player 1 reclaim, additional-controller Player 2 assignment, stable Player 1
+  while Player 2 changes, virtual-touch overlap, and foreground recovery.
+- Clean patch replay/reverse-check, repository safety, all 11 route cases, the
+  ROM-free unsigned arm64 iPhoneOS Release build, package audit, and the strict
+  signed arm64 device build pass at version `0.1.0` build `4`. The clean
+  Simulator sources compile, but Xcode 26.6 currently links an iPhoneOS
+  CoreVideo path into the Simulator target; that pre-existing build-system
+  failure remains separate from the controller repair.
+- The signed build was installed in place as
+  `com.chrissotraidis.starshippad` on the attached 12.9-inch iPad Pro. PID 612
+  reached the title/menu state and heartbeats through frame 900. One
+  background/foreground cycle stayed on PID 612, paused at frame 2015, resumed
+  at the same frame, and logged `controller_reconciled=true`.
+- Pre/post readback hashes match for the user ROM, generated `sf64.o2r`, Torch
+  hash, save, touch layout, and preferences plist. `starship.cfg.json` changed
+  only by additive default SDL mappings for the newly usable secondary player
+  ports; every pre-existing configuration value remained identical.
+- No physical controller was connected. Bluetooth reconnect, wired reconnect,
+  natural sleep/wake, held-input release on hardware, full mapping, rumble,
+  touch-overlay transitions with hardware, and two-controller ownership remain
+  explicit physical acceptance gates.
+- Release artifact: `StarshipPad-v0.1.0-preview.4-unsigned.ipa` (ROM-free,
+  unsigned, self-signing required). SHA-256 is recorded in the Preview 4 GitHub
+  release and its adjacent checksum asset.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |

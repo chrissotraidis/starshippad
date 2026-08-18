@@ -166,6 +166,17 @@ Simulator-versus-hardware boundary are documented in
 
 ## Physical controller and lifecycle protocol
 
+Run the deterministic ownership regression before hardware testing:
+
+```sh
+scripts/test-controller-reconnect.sh
+```
+
+It simulates a missed removal while button and axis input is held, stale-handle
+release and neutral input, Player 1 reclaim, additional-controller Player 2
+assignment, two-controller preservation, virtual-touch takeover, and
+foreground reconciliation against the patched LibUltraShip SDL2 manager.
+
 Pair an iOS-supported MFi, Xbox, or PlayStation extended gamepad before
 launch. For Simulator diagnostics, connect it to the Mac and enable
 **I/O > Input > Send Game Controller to Device**. Simulator forwarding is not
