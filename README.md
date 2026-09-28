@@ -12,7 +12,6 @@
   <img alt="Metal renderer" src="https://img.shields.io/badge/renderer-Metal-5E5CE6">
   <img alt="Physical iPhone and iPad testing" src="https://img.shields.io/badge/physical%20devices-in%20testing-30D158">
   <img alt="Custom touch layouts are experimental" src="https://img.shields.io/badge/custom%20touch-experimental-64D2FF">
-  <a href="https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5"><img alt="Unsigned IPA Preview 5 available" src="https://img.shields.io/badge/IPA-preview%205%20available-FF9F0A"></a>
   <img alt="Game data not included" src="https://img.shields.io/badge/game%20data-not%20included-FF453A">
 </p>
 
@@ -45,12 +44,7 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 
 ## Download Preview 5
 
-[Download StarshipPad Preview 5 (`.ipa`, unsigned)](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.5/StarshipPad-v0.1.0-preview.5-unsigned.ipa)
-or review the
-[release notes](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5).
-A separate
-[SHA-256 checksum](https://github.com/chrissotraidis/starshippad/releases/download/v0.1.0-preview.5/StarshipPad-v0.1.0-preview.5-unsigned.ipa.sha256)
-is published beside the IPA.
+Previous builds have been retired; a new version is in progress.
 
 SHA-256: `a57ed4bd149e8cfaf791b620681c69aeb32371d79d7242c18845832c65b57892`
 
@@ -343,11 +337,7 @@ ROM-derived game archive.
 <details>
 <summary><strong>Where is the IPA?</strong></summary>
 
-The audited, ROM-free
-[Preview 5 unsigned IPA](https://github.com/chrissotraidis/starshippad/releases/tag/v0.1.0-preview.5)
-is available from GitHub Releases. It is an audited ROM-free package but is not
-installable as published: you must sign it with your own Apple development
-identity and provisioning profile. No official signed download is available.
+Previous builds have been retired; a new version is in progress.
 </details>
 
 <details>
