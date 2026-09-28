@@ -4,7 +4,7 @@
   "name": "StarshipPad",
   "game": "Star Fox 64 (N64) via Starship",
   "kind": "decomp-patches",
-  "status": "draft-untested",
+  "status": "experimental",
   "inputs": [
     {
       "type": "n64-rom",
