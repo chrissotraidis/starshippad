@@ -38,9 +38,11 @@ bundle_version="$(plutil -extract CFBundleShortVersionString raw "$APP/Info.plis
 bundle_build="$(plutil -extract CFBundleVersion raw "$APP/Info.plist")"
 [[ "$bundle_identifier" != com.example.* ]] ||
     fail "placeholder bundle identifier remains: $bundle_identifier"
-[ "$bundle_version" = "${STARSHIPPAD_VERSION:-0.1.0}" ] ||
+expected_version="${STARSHIPPAD_VERSION:-$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$ROOT/version.json")}"
+expected_build="${STARSHIPPAD_BUILD_NUMBER:-$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["build"])' "$ROOT/version.json")}"
+[ "$bundle_version" = "$expected_version" ] ||
     fail "unexpected release version: $bundle_version"
-[ "$bundle_build" = "${STARSHIPPAD_BUILD_NUMBER:-5}" ] ||
+[ "$bundle_build" = "$expected_build" ] ||
     fail "unexpected build number: $bundle_build"
 
 local_path="$(strings -a "$APP/StarshipPad" |
