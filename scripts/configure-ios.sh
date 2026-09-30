@@ -12,9 +12,15 @@ STARSHIPPAD_BUILD_NUMBER="${STARSHIPPAD_BUILD_NUMBER:-$(python3 -c 'import json,
 IOS_PLATFORM="${IOS_PLATFORM:-OS64}"
 BUILD_DIR="$ROOT/build-ios"
 
-if [ "$IOS_PLATFORM" = "SIMULATORARM64" ]; then
-    BUILD_DIR="$ROOT/build-ios-sim"
-fi
+case "$IOS_PLATFORM" in
+    OS64) SDK=iphoneos ;;
+    SIMULATORARM64)
+        SDK=iphonesimulator
+        BUILD_DIR="$ROOT/build-ios-sim"
+        ;;
+    *) echo "Unsupported iOS platform: $IOS_PLATFORM" >&2; exit 2 ;;
+esac
+SDK_PATH="$(xcrun --sdk "$SDK" --show-sdk-path)"
 
 if [ ! -d "$SOURCE/.git" ]; then
     echo "Missing sources/Starship. Run scripts/clone-sources.sh first." >&2
@@ -23,8 +29,11 @@ fi
 
 set -- cmake -Wno-unused-cli \
     -S "$SOURCE" -B "$BUILD_DIR" \
+    -C "$ROOT/scripts/ios-sdk-cache.cmake" \
     -GXcode \
     -DCMAKE_SYSTEM_NAME=iOS \
+    -DCMAKE_OSX_SYSROOT="$SDK_PATH" \
+    -DCMAKE_OSX_SYSROOT_INT="$SDK_PATH" \
     -DCMAKE_SYSTEM_VERSION="$DEPLOYMENT_TARGET" \
     -DDEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
     -DCMAKE_OSX_DEPLOYMENT_TARGET="$DEPLOYMENT_TARGET" \
