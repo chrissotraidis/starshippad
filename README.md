@@ -93,7 +93,7 @@ brew install cmake ninja pkgconf sdl2 glew nlohmann-json libzip \
 
 then download [PadMint](https://github.com/chrissotraidis/padmint/releases/latest), unzip it,
 double-click `PadMint.command` and choose StarshipPad. PadMint builds the app from this
-repository's latest release and saves an unsigned IPA in the folder you choose. Install it with
+repository's latest release and saves an unsigned IPA in your Downloads folder. Install it with
 your sideloading tool, then import your ROM in the app (see [First flight](#first-flight)).
 
 **By hand:**
