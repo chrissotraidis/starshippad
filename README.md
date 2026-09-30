@@ -346,7 +346,7 @@ ROM-derived game archive.
 <details>
 <summary><strong>Where is the IPA?</strong></summary>
 
-Previous builds have been retired; a new version is in progress.
+There is no public IPA: StarshipPad is compiled from the Starship decompilation, so PadForge builds your own on an Apple Silicon Mac. See [Get started](#get-started).
 </details>
 
 <details>
