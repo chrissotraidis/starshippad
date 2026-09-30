@@ -1119,6 +1119,30 @@ Those hardware gates remain explicitly open on this machine.
   unsigned, self-signing required), SHA-256
   `a57ed4bd149e8cfaf791b620681c69aeb32371d79d7242c18845832c65b57892`.
 
+### 2026-10-01 — SDK repair and source-only 0.2.1 staging
+
+- Draft #20 repairs cached macOS SDK discoveries in iPhoneOS/Simulator
+  configuration without changing touch controls or game inputs.
+- Exact candidate `731addea90a4acfeb77cbe191f3e1bd025426a66` passed
+  packaged PadMint 0.2.8's supported generic `build` route with an explicit
+  revision and one job: preflight, compile and package completed in 131.88
+  seconds. The candidate still carried 0.2.0/build 6 metadata.
+- Focused stale-SDK UIKit tests passed for device and Simulator targets.
+  Hosted repository safety and full unsigned iPhoneOS build/package checks
+  passed. No new runtime, device, gameplay or controller acceptance is claimed.
+- The personal app/IPA fails the shared public-content gate (99 address-named
+  symbols); it is not a public release artifact. Source/recipe gate results
+  do not establish legal or rights clearance.
+- Proposed 0.2.1/build 7 stages only the unchanged source recipe and its
+  checksum. This version-only successor has not had a new full app build;
+  candidate proof above is not proof of the successor's app metadata.
+- Publication remains paused by AGENTS.md until the private audit is verified
+  Clear, owner review approves the final source, and every final artifact
+  passes the release gate. Published v0.2.0 still selects the old failing
+  source. Normal packaged `make starshippad ios --jobs 1` must be verified
+  separately after an approved successor source release; `make` has no
+  explicit-revision flag. No release, public binary or download link is added.
+
 ## Open-question resolution ledger
 
 | Question | Resolution phase | State | Evidence |
