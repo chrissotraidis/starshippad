@@ -38,14 +38,14 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Make your own IPA with PadForge | **Available** | On a Mac, [PadForge](https://github.com/chrissotraidis/padforge/releases/latest) builds StarshipPad from this repository's latest release and saves an unsigned IPA; install it with AltStore Classic, SideStore or Sideloadly. See [Get started](#get-started) |
+| Make your own IPA with PadMint | **Available** | On a Mac, [PadMint](https://github.com/chrissotraidis/padmint/releases/latest) builds StarshipPad from this repository's latest release and saves an unsigned IPA; install it with AltStore Classic, SideStore or Sideloadly. See [Get started](#get-started) |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
 ## Current build status
 
 Releases publish no app: StarshipPad is compiled from the Starship
-decompilation, so you make your own with PadForge (see [Get started](#get-started)).
+decompilation, so you make your own with PadMint (see [Get started](#get-started)).
 Star Fox 64 game data is never included; you import it from your own legally
 acquired supported ROM.
 
@@ -91,8 +91,8 @@ brew install cmake ninja pkgconf sdl2 glew nlohmann-json libzip \
   tinyxml2 libogg libvorbis
 ```
 
-then download [PadForge](https://github.com/chrissotraidis/padforge/releases/latest), unzip it,
-double-click `PadForge.command` and choose StarshipPad. PadForge builds the app from this
+then download [PadMint](https://github.com/chrissotraidis/padmint/releases/latest), unzip it,
+double-click `PadMint.command` and choose StarshipPad. PadMint builds the app from this
 repository's latest release and saves an unsigned IPA in the folder you choose. Install it with
 your sideloading tool, then import your ROM in the app (see [First flight](#first-flight)).
 
@@ -346,7 +346,7 @@ ROM-derived game archive.
 <details>
 <summary><strong>Where is the IPA?</strong></summary>
 
-There is no public IPA: StarshipPad is compiled from the Starship decompilation, so PadForge builds your own on an Apple Silicon Mac. See [Get started](#get-started).
+There is no public IPA: StarshipPad is compiled from the Starship decompilation, so PadMint builds your own on an Apple Silicon Mac. See [Get started](#get-started).
 </details>
 
 <details>
