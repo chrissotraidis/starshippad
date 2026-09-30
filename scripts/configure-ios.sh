@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SOURCE="$ROOT/sources/Starship"
 DEPLOYMENT_TARGET="${DEPLOYMENT_TARGET:-16.0}"
 BUNDLE_ID="${BUNDLE_ID:-com.chrissotraidis.starshippad}"
-# One version for the app, its release and PadForge: version.json.
+# One version for the app, its release and PadMint: version.json.
 STARSHIPPAD_VERSION="${STARSHIPPAD_VERSION:-$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$ROOT/version.json")}"
 STARSHIPPAD_BUILD_NUMBER="${STARSHIPPAD_BUILD_NUMBER:-$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["build"])' "$ROOT/version.json")}"
 IOS_PLATFORM="${IOS_PLATFORM:-OS64}"
