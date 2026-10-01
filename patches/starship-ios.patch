@@ -324,10 +324,9 @@ index 00000000..73c00596
 +}
 diff --git a/ios/Info.plist.in b/ios/Info.plist.in
 new file mode 100644
-index 00000000..b036e23e
 --- /dev/null
 +++ b/ios/Info.plist.in
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,70 @@
 +<?xml version="1.0" encoding="UTF-8"?>
 +<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 +<plist version="1.0">
@@ -370,6 +369,11 @@ index 00000000..b036e23e
 +    <true/>
 +    <key>UIFileSharingEnabled</key>
 +    <true/>
++    <key>UIApplicationSceneManifest</key>
++    <dict>
++        <key>UIApplicationSupportsMultipleScenes</key>
++        <false/>
++    </dict>
 +    <key>UILaunchScreen</key>
 +    <dict/>
 +    <key>UIRequiredDeviceCapabilities</key>
