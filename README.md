@@ -38,7 +38,7 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Make your own IPA with PadMint | **Available** | On a Mac, [PadMint](https://github.com/chrissotraidis/padmint/releases/latest) builds StarshipPad from this repository's latest release and saves an unsigned IPA; install it with AltStore Classic, SideStore or Sideloadly. See [Get started](#get-started) |
+| Make your own IPA with PadMint | **Known build issue** | Public v0.2.0 has a reproduced SDK-selection failure. The repair is in a draft and has not reached the released recipe. See [Get started](#get-started). |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
@@ -84,6 +84,14 @@ SDL mappings for the newly usable secondary player ports.
 
 ## Get started
 
+**Current release limitation:** PadMint still selects v0.2.0. Its Mac build has
+reproduced `CoreVideo/CVOpenGLESTexture.h file not found` because target framework
+lookup crosses into the Mac SDK. [The SDK repair](https://github.com/chrissotraidis/starshippad/pull/20)
+passes build checks, but the [source-only successor](https://github.com/chrissotraidis/starshippad/pull/21)
+is not published. Repeating the same released build does not select that repair.
+The setup below describes the intended route; it is not a claim that v0.2.0's
+failure is resolved.
+
 **The easy way:** on a Mac with Xcode, install the build libraries once:
 
 ```sh
@@ -94,7 +102,8 @@ brew install cmake ninja pkgconf sdl2 glew nlohmann-json libzip \
 then download [PadMint](https://github.com/chrissotraidis/padmint/releases/latest), unzip it,
 double-click `PadMint.command` and choose StarshipPad. PadMint builds the app from this
 repository's latest release and saves an unsigned IPA in your Downloads folder. Install it with
-your sideloading tool, then import your ROM in the app (see [First flight](#first-flight)).
+your sideloading tool, copy your ROM into the StarshipPad folder in Files, then
+return to the app and choose **Rescan** (see [First flight](#first-flight)).
 
 **By hand:**
 
