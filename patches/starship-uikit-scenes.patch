@@ -1,0 +1,15 @@
+diff --git a/ios/Info.plist.in b/ios/Info.plist.in
+--- a/ios/Info.plist.in
++++ b/ios/Info.plist.in
+@@ -40,6 +40,11 @@
+     <true/>
+     <key>UIFileSharingEnabled</key>
+     <true/>
++    <key>UIApplicationSceneManifest</key>
++    <dict>
++        <key>UIApplicationSupportsMultipleScenes</key>
++        <false/>
++    </dict>
+     <key>UILaunchScreen</key>
+     <dict/>
+     <key>UIRequiredDeviceCapabilities</key>

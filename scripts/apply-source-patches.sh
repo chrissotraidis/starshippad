@@ -20,23 +20,32 @@ done
 apply_patch() {
     local tree="$1"
     local patch="$2"
+    local upgrade="${3:-}"
 
     if git -C "$tree" apply --check "$patch" 2>/dev/null; then
         git -C "$tree" apply "$patch"
         echo "Applied $(basename "$patch")"
     elif git -C "$tree" apply --reverse --check "$patch" 2>/dev/null; then
         echo "Already applied: $(basename "$patch")"
+    elif [ -n "$upgrade" ] && git -C "$tree" apply --check "$upgrade" 2>/dev/null; then
+        git -C "$tree" apply "$upgrade"
+        # A legacy-cache upgrade must satisfy the complete maintained patch.
+        git -C "$tree" apply --reverse --check "$patch" || {
+            echo "Upgrade could not validate the complete patch; source edits were preserved: $patch" >&2
+            exit 1
+        }
+        echo "Upgraded: $(basename "$patch")"
     else
         echo "Patch does not apply cleanly: $patch" >&2
         exit 1
     fi
 }
 
-apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch"
+apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch" "$ROOT/patches/libultraship-uikit-scenes.patch"
 apply_patch "$TORCH" "$ROOT/patches/torch-ios.patch"
 
 if [ -s "$ROOT/patches/starship-ios.patch" ]; then
-    apply_patch "$STARSHIP" "$ROOT/patches/starship-ios.patch"
+    apply_patch "$STARSHIP" "$ROOT/patches/starship-ios.patch" "$ROOT/patches/starship-uikit-scenes.patch"
     icon_source="$ROOT/ios-assets/AppIcon.png"
     icon_destination="$STARSHIP/ios/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
     if [ ! -f "$icon_source" ]; then

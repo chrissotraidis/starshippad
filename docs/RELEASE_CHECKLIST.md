@@ -1,9 +1,26 @@
 # StarshipPad release checklist
 
-This is the final gate for a public source snapshot or downloadable IPA.
+Public releases are source only. `padmint.json` sets `public_binaries: false`.
+Personal app/IPA builds are local validation outputs, not public assets.
+
+AGENTS.md pauses all public releases and download links until this repository
+is verified **Clear** in the maintainer's private release audit. Owner approval
+and the mandatory local artifact gate are required; drafting this checklist
+or obtaining a heuristic gate PASS does not provide rights clearance.
 
 ## Every public source update
 
+- [ ] Private release audit is verified Clear and owner approves publication.
+- [ ] The final release tag resolves to the reviewed immutable source commit.
+- [ ] Tag, release name and `version.json` agree on the version; build number
+      advances deliberately. Configuration and app audit read `version.json`.
+- [ ] Release assets contain only the versioned PadMint recipe and matching
+      SHA256SUMS, never a full app/IPA or other compiled game binary.
+- [ ] Versioned recipe is byte-identical to tracked `padmint.json`, parses
+      with the actual packaged PadMint, and retains `public_binaries: false`.
+- [ ] Every exact final asset and source archive passes
+      `python3 ~/.codex/release-gate/release_gate.py <artifact>`.
+      Any failure stops publication. Recheck after any artifact/source change.
 - [ ] `scripts/check-repo-safety.sh` passes.
 - [ ] `scripts/test-controller-reconnect.sh` passes.
 - [ ] The three pinned source revisions replay without manual edits.
@@ -18,55 +35,39 @@ This is the final gate for a public source snapshot or downloadable IPA.
       signed app, or IPA appears in the current tree or Git history.
 - [ ] Remaining physical-device limitations are stated plainly.
 
-## Before publishing an unsigned preview IPA
+## Proposed v0.2.1 source-only successor (not published)
 
-- [ ] Build from a clean checkout at the preview tag.
-- [ ] `scripts/build-ios.sh --device` produces an unsigned arm64 app.
-- [ ] `scripts/package-ios.sh` accepts the app and records the IPA SHA-256.
-- [ ] `REQUIRE_SIGNED=1 scripts/package-ios.sh` rejects the same app.
-- [ ] Confirm the IPA and its bundled `starship.o2r` contain no ROM,
-      ROM-derived archive, extracted asset, or signing material.
-- [ ] Confirm the app contains StarshipPad's `LICENSE`,
-      `THIRD_PARTY_NOTICES.md`, and the complete Apache 2.0 license text.
-- [ ] Confirm bundle version, build number, and identifier are deliberate and
-      no local build path appears in the executable.
-- [ ] Publish the checksum beside the IPA.
-- [ ] State prominently that the artifact is ROM-free, unsigned, and requires
-      the user to supply both signing and legally acquired game data.
-
-## Before publishing a signed, installable IPA
-
-- [ ] Build from a clean checkout at a tagged commit.
-- [ ] Use a deliberate distribution bundle identifier and fresh signing
-      identity/profile.
-- [ ] `REQUIRE_SIGNED=1 scripts/package-ios.sh` passes on the exact app being
-      distributed.
-- [ ] Record the tag, commit, Xcode version, SDK, bundle version, signing type,
-      IPA SHA-256, and supported device/OS range in the release notes.
-- [ ] Install the packaged IPA on clean physical hardware.
-- [ ] Import and extract a supported `.z64` and byteswapped `.v64` through
-      Files, then prove relaunch without re-extraction.
-- [ ] Exercise the regional Voice Pack route with a legally acquired supported
-      JP, EU/Spanish, or CN ROM.
-- [ ] Play through the full touch-only action matrix.
-- [ ] Complete the lifecycle, save, speaker/audio-interruption, and physical
-      controller/reconnect/rumble matrix.
-- [ ] Confirm the IPA contains only the ROM-free `starship.o2r`; it must never
-      contain the user's ROM or generated `sf64*.o2r`.
-- [ ] Publish known limitations, installation/signing requirements, and a
-      rollback path.
+- `version.json`: 0.2.1 / build 7.
+- Staged assets: `releases/v0.2.1/StarshipPad-v0.2.1-padmint.json` and
+  `releases/v0.2.1/SHA256SUMS`. The recipe commands/schema are unchanged.
+- Depends on reviewed SDK repair #20. Do not tag source that lacks that fix.
+- Preserve published v0.2.0 assets, checksums and player caches unchanged.
+- The tested SDK candidate was `731addea90a4acfeb77cbe191f3e1bd025426a66`
+  with 0.2.0/build 6 metadata. Its complete packaged PadMint 0.2.8 build and
+  hosted CI passed; this is not a new 0.2.1 app/runtime acceptance claim.
+- After approved source publication, independently run actual packaged
+  PadMint 0.2.8 `make starshippad ios --jobs 1`. Record selected tag, resolved
+  source commit, cache identity and all pipeline stages. Until then, the
+  default published-player route remains unverified against the repair.
+- For explicit candidate source, use supported generic `build --repo ...
+  --revision <reviewed-full-commit> --target ios --jobs 1`; `make` has no
+  supported explicit-revision flag.
 
 ## Current blockers
 
-- Development-signed builds have been installed and launched on a physical
-  iPhone 14 and 12.9-inch iPad Pro, but no redistributable signing
-  identity/profile is available for a public installable package.
+- Private-audit Clear status and publication approval must be verified.
+- Full app/IPA publication is prohibited by the current source-only policy,
+  independent of signing. The SDK candidate's personal IPA also fails the
+  public-content heuristic gate; ordinary app audit PASS is not clearance.
 - Physical-device speaker and interruption behavior remain untested.
 - Physical controller pairing, reconnect, and rumble remain untested.
 - End-to-end regional Voice Pack extraction needs a lawful regional input.
 
-Until those gates are resolved, describe StarshipPad as a source preview with
-an audited unsigned preview IPA—not a finished installable binary release.
+Describe StarshipPad as an experimental source preview with user-local
+builds, not a finished or publicly distributed installable binary release.
+SDK/build proof is not runtime or physical-device acceptance. Keep the
+existing hardware/input/voice acceptance matrix separate from source-only
+publication and do not infer its completion from CI.
 
 ## When changing repository visibility to public
 
