@@ -38,7 +38,7 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Make your own IPA with PadMint | **Known build issue** | Public v0.2.0 has a reproduced SDK-selection failure. The repair is in a draft and has not reached the released recipe. See [Get started](#get-started). |
+| Make your own IPA with PadMint | **Known build issue** | Public v0.2.0 has a reproduced SDK-selection failure. The source repair has not reached the released recipe. See [Get started](#get-started). |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
