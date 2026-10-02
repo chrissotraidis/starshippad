@@ -14,7 +14,7 @@
         "v64"
       ],
       "when": "in-app",
-      "description": "Your own supported Star Fox 64 ROM, chosen in the app after installation. The build does not read it."
+      "description": "Your own supported Star Fox 64 ROM. After installation, copy it into the StarshipPad folder in Files, then return to the app and choose Rescan. The build does not read it."
     }
   ],
   "targets": {
