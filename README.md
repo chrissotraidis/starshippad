@@ -17,13 +17,6 @@
   <a href="https://discord.gg/xwHfUD2bxW"><img alt="Join the StarshipPad Discord" src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white"></a>
 </p>
 
-![StarshipPad running Starship in iPad Simulator with its complete touch flight deck](docs/readme/starshippad-hero.jpg)
-
-<p align="center">
-  <sub>Current iPad Simulator capture. Game data was supplied locally and is
-  not included in this repository or its build artifacts.</sub>
-</p>
-
 StarshipPad turns the complete
 [Starship](https://github.com/HarbourMasters/Starship) source port into a
 native iOS/iPadOS application. Build it on a Mac, import your own supported
@@ -259,48 +252,6 @@ phone/tablet interaction matrix passes on physical hardware.
 The exact layout, SDL bindings, accessibility contract, and evidence boundary
 are documented in
 [`docs/touch-controls-design.md`](docs/touch-controls-design.md).
-
-## Setup and controls
-
-<table>
-  <tr>
-    <td width="50%">
-      <img src="docs/readme/starshippad-action-sunset.jpg" alt="StarshipPad touch controls during an aerial Star Fox 64 mission on iPad">
-    </td>
-    <td width="50%">
-      <img src="docs/readme/starshippad-controller.jpg" alt="StarshipPad Controller settings showing Touch Controls and Analog Touch in iPad Simulator">
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>In-game action</strong><br>Fly, fight, and
-    answer your wingmen with the complete touch flight deck.</td>
-    <td align="center"><strong>Tune it while running</strong><br>Touch,
-    analog aim, invert-Y, and controller mapping remain available in the
-    persistent menu.</td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="docs/readme/starshippad-action-landmaster.jpg" alt="StarshipPad touch controls during a Landmaster mission on iPad">
-    </td>
-    <td width="50%">
-      <img src="docs/readme/starshippad-action-battle.jpg" alt="StarshipPad touch controls during an all-range battle on iPad">
-    </td>
-  </tr>
-  <tr>
-    <td align="center"><strong>Take the fight planetside</strong><br>Trade
-    wings for treads when the mission calls for the Landmaster.</td>
-    <td align="center"><strong>Built for every stage</strong><br>Bank, boost,
-    brake, fire, and keep your hands on the action.</td>
-  </tr>
-</table>
-
-The three action views above are current physical-iPad captures; the opening
-gameplay image and Controller settings view are current iPad Simulator
-captures. Together they show rendered gameplay, the complete touch overlay,
-and persistent settings access. A screenshot does not prove sustained
-performance or control feel. No ROM, generated game archive, or extracted
-game asset is included. Capture provenance and hashes are in
-[`docs/remaining-work.md`](docs/remaining-work.md).
 
 ## What works
 
