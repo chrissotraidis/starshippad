@@ -419,3 +419,12 @@ included and require their own permission. Details are in the
 [asset and trademark notice](docs/ASSET_AND_TRADEMARK_NOTICE.md), the
 [dependency inventory](docs/LICENSES.md), and the
 [notices distributed with the app](THIRD_PARTY_NOTICES.md).
+
+## Legal
+
+StarshipPad is an unofficial, fan-made project. It is not affiliated with,
+endorsed by, or sponsored by Nintendo. Star Fox 64 and related names and marks
+are trademarks of Nintendo (and their respective owners). This repository
+contains no game data, ROMs, or extracted assets. To use it, you need your own
+legally obtained copy of the game, and you build it yourself on your own
+machine. Please don't share game files or builds made from them.
