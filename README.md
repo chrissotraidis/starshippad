@@ -40,7 +40,7 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Make your own IPA with PadMint | **Known build issue** | Public v0.2.0 has a reproduced SDK-selection failure. The source repair has not reached the released recipe. See [Get started](#get-started). |
+| Make your own IPA with PadMint | **Available** | On an Apple Silicon Mac, or on [GitHub's free Mac](https://github.com/chrissotraidis/padmint#no-mac-build-on-githubs-mac) without one, [PadMint](https://github.com/chrissotraidis/padmint/releases/latest) builds StarshipPad from this repository's latest release (v0.2.1, which includes the [SDK repair](https://github.com/chrissotraidis/starshippad/pull/20)). See [Get started](#get-started). |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 
@@ -86,14 +86,6 @@ SDL mappings for the newly usable secondary player ports.
 
 ## Get started
 
-**Current release limitation:** PadMint still selects v0.2.0. Its Mac build has
-reproduced `CoreVideo/CVOpenGLESTexture.h file not found` because target framework
-lookup crosses into the Mac SDK. [The SDK repair](https://github.com/chrissotraidis/starshippad/pull/20)
-passes build checks, but the [source-only successor](https://github.com/chrissotraidis/starshippad/pull/21)
-is not published. Repeating the same released build does not select that repair.
-The setup below describes the intended route; it is not a claim that v0.2.0's
-failure is resolved.
-
 **The easy way:** on a Mac with Xcode, install the build libraries once:
 
 ```sh
@@ -106,6 +98,10 @@ double-click `PadMint.command` and choose StarshipPad. PadMint builds the app fr
 repository's latest release and saves an unsigned IPA in your Downloads folder. Install it with
 your sideloading tool, copy your ROM into the StarshipPad folder in Files, then
 return to the app and choose **Rescan** (see [First flight](#first-flight)).
+
+**No Mac?** You can build the iPhone and iPad app on GitHub's free Mac from Windows,
+Linux or any computer with a web browser: follow
+[PadMint's steps](https://github.com/chrissotraidis/padmint#no-mac-build-on-githubs-mac).
 
 **By hand:**
 
@@ -315,7 +311,7 @@ ROM-derived game archive.
 <details>
 <summary><strong>Where is the IPA?</strong></summary>
 
-There is no public IPA: StarshipPad is compiled from the Starship decompilation, so PadMint builds your own on an Apple Silicon Mac. See [Get started](#get-started).
+There is no public IPA: StarshipPad is compiled from the Starship decompilation, so PadMint builds your own on an Apple Silicon Mac or on GitHub's free Mac. See [Get started](#get-started).
 </details>
 
 <details>
