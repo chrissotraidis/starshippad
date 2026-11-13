@@ -399,10 +399,10 @@ new file mode 100644
 +</plist>
 diff --git a/ios/StarshipTouchControls.h b/ios/StarshipTouchControls.h
 new file mode 100644
-index 00000000..123451fd
+index 00000000..8795f242
 --- /dev/null
 +++ b/ios/StarshipTouchControls.h
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,22 @@
 +#pragma once
 +
 +#ifdef __cplusplus
@@ -416,16 +416,21 @@ index 00000000..123451fd
 +void StarshipPad_SetCustomTouchLayoutEnabled(int enabled);
 +void StarshipPad_BeginTouchLayoutEditing(void);
 +void StarshipPad_SetTouchControlsMenuVisible(int visible);
++void StarshipPad_SetAutoHideTouchControls(int enabled);
++void StarshipPad_SetPlayerOneGamepadReady(int ready);
++void StarshipPad_ShowTouchControls(void);
++int StarshipPad_TouchControlsHidden(void);
++int StarshipPad_GetTouchControllerInstanceId(void);
 +
 +#ifdef __cplusplus
 +}
 +#endif
 diff --git a/ios/StarshipTouchControls.mm b/ios/StarshipTouchControls.mm
 new file mode 100644
-index 00000000..575c93d6
+index 00000000..9cca6f01
 --- /dev/null
 +++ b/ios/StarshipTouchControls.mm
-@@ -0,0 +1,1425 @@
+@@ -0,0 +1,1470 @@
 +#import <UIKit/UIKit.h>
 +
 +#include <algorithm>
@@ -434,8 +439,11 @@ index 00000000..575c93d6
 +#include <SDL.h>
 +
 +#include "StarshipTouchControls.h"
++#include "StarshipTouchVisibility.h"
 +
-+static BOOL sTouchControlsDesired;
++static std::atomic_bool sTouchControlsDesired(false);
++static std::atomic_bool sAutoHideTouchControls(true);
++static std::atomic_bool sPlayerOneGamepadReady(false);
 +static BOOL sTouchAnalogDesired = YES;
 +static BOOL sCustomTouchLayoutEnabled;
 +static BOOL sLayoutEditorRequested;
@@ -443,11 +451,16 @@ index 00000000..575c93d6
 +static std::atomic_bool sTouchControlsMenuVisible(false);
 +static std::atomic_bool sControllerReconcileQueued(false);
 +static SDL_Joystick* sVirtualJoystick;
-+static SDL_JoystickID sVirtualJoystickInstance = -1;
++static std::atomic<SDL_JoystickID> sVirtualJoystickInstance(-1);
 +static std::array<int, SDL_NUM_SCANCODES> sControlPressCounts = {};
 +static const NSInteger kTouchLayoutStorageVersion = 2;
 +static void StarshipPad_ApplyTouchControlsState(void);
 +static void StarshipPad_ReleaseVisibleInputs(void);
++
++static bool StarshipPad_TouchGameplayControlsVisible(void) {
++    return StarshipPad::TouchGameplayControlsVisible(
++        { sTouchControlsDesired.load(), sAutoHideTouchControls.load() }, sPlayerOneGamepadReady.load());
++}
 +
 +static void StarshipPad_PushKey(SDL_Scancode scancode, BOOL pressed) {
 +    SDL_Event event = {};
@@ -595,18 +608,10 @@ index 00000000..575c93d6
 +            static_cast<int>(sVirtualJoystickInstance));
 +}
 +
-+static BOOL StarshipPad_HasPhysicalController(void) {
-+    for (int index = 0; index < SDL_NumJoysticks(); index++) {
-+        if (SDL_JoystickGetDeviceInstanceID(index) != sVirtualJoystickInstance &&
-+            SDL_IsGameController(index) == SDL_TRUE) {
-+            return YES;
-+        }
-+    }
-+    return NO;
-+}
-+
 +static void StarshipPad_ReconcileVirtualController(void) {
-+    if (sTouchControlsDesired && sTouchAnalogDesired && !StarshipPad_HasPhysicalController()) {
++    // The analog controller exists exactly while the gameplay controls do, so
++    // hidden artwork never leaves a live virtual controller behind.
++    if (StarshipPad_TouchGameplayControlsVisible() && sTouchAnalogDesired) {
 +        StarshipPad_AttachVirtualController();
 +    } else {
 +        StarshipPad_DetachVirtualController();
@@ -722,7 +727,9 @@ index 00000000..575c93d6
 +}
 +
 +- (void)inputDown {
-+    if (self.layoutEditing) {
++    // A finger that was already down keeps reporting to a removed control;
++    // hidden controls must not start input.
++    if (self.layoutEditing || self.window == nil) {
 +        return;
 +    }
 +    if (self.inputPressed) {
@@ -968,7 +975,7 @@ index 00000000..575c93d6
 +}
 +
 +- (void)touchesBegan:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-+    if (self.layoutEditing) {
++    if (self.layoutEditing || self.window == nil) {
 +        return;
 +    }
 +    UITouch* touch = touches.anyObject;
@@ -978,7 +985,7 @@ index 00000000..575c93d6
 +}
 +
 +- (void)touchesMoved:(NSSet<UITouch*>*)touches withEvent:(UIEvent*)event {
-+    if (self.layoutEditing) {
++    if (self.layoutEditing || self.window == nil) {
 +        return;
 +    }
 +    UITouch* touch = touches.anyObject;
@@ -1758,7 +1765,7 @@ index 00000000..575c93d6
 +    }
 +
 +    StarshipPad_InstallMenuButton(window);
-+    if (!sTouchControlsDesired || sTouchControlsMenuVisible.load()) {
++    if (!StarshipPad_TouchGameplayControlsVisible() || sTouchControlsMenuVisible.load()) {
 +        [sTouchOverlay endLayoutEditing];
 +        StarshipPad_ReleaseVisibleInputs();
 +        [sTouchOverlay removeFromSuperview];
@@ -1828,7 +1835,7 @@ index 00000000..575c93d6
 +
 +void StarshipPad_BeginTouchLayoutEditing(void) {
 +    dispatch_async(dispatch_get_main_queue(), ^{
-+        if (!sCustomTouchLayoutEnabled || !sTouchControlsDesired) {
++        if (!sCustomTouchLayoutEnabled || !StarshipPad_TouchGameplayControlsVisible()) {
 +            SDL_Log("StarshipPad layout editor requires experimental custom touch controls");
 +            return;
 +        }
@@ -1851,6 +1858,120 @@ index 00000000..575c93d6
 +        StarshipPad_ApplyTouchControlsState();
 +    });
 +}
++
++void StarshipPad_SetAutoHideTouchControls(int enabled) {
++    sAutoHideTouchControls.store(enabled != 0);
++    dispatch_async(dispatch_get_main_queue(), ^{
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
++
++void StarshipPad_SetPlayerOneGamepadReady(int ready) {
++    const bool gamepadReady = ready != 0;
++    if (sPlayerOneGamepadReady.exchange(gamepadReady) == gamepadReady) {
++        return;
++    }
++    SDL_Log("StarshipPad player 1 gameplay controller %s", gamepadReady ? "connected" : "not connected");
++    dispatch_async(dispatch_get_main_queue(), ^{
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
++
++void StarshipPad_ShowTouchControls(void) {
++    const StarshipPad::TouchPreferences preferences =
++        StarshipPad::ShowTouchControls({ sTouchControlsDesired.load(), sAutoHideTouchControls.load() });
++    sTouchControlsDesired.store(preferences.touchControls);
++    sAutoHideTouchControls.store(preferences.autoHideWithController);
++    dispatch_async(dispatch_get_main_queue(), ^{
++        SDL_Log("StarshipPad touch controls shown; auto-hide with controller turned off");
++        if (sTouchControlsMenuVisible.load()) {
++            // Close Settings the same way the menu button opens it so the
++            // restored controls are usable at once.
++            StarshipPad_PushKey(SDL_SCANCODE_F1, YES);
++            StarshipPad_PushKey(SDL_SCANCODE_F1, NO);
++        }
++        StarshipPad_ApplyTouchControlsState();
++    });
++}
++
++int StarshipPad_TouchControlsHidden(void) {
++    return StarshipPad_TouchGameplayControlsVisible() ? 0 : 1;
++}
++
++int StarshipPad_GetTouchControllerInstanceId(void) {
++    return static_cast<int>(sVirtualJoystickInstance.load());
++}
+diff --git a/ios/StarshipTouchVisibility.h b/ios/StarshipTouchVisibility.h
+new file mode 100644
+index 00000000..34ef1757
+--- /dev/null
++++ b/ios/StarshipTouchVisibility.h
+@@ -0,0 +1,65 @@
++#pragma once
++
++#include <cstdint>
++
++// Touch-control visibility shared by the overlay, the settings menu and
++// StarshipPad's native tests. libultraship's controller manager stays the
++// authority for which player a controller belongs to.
++namespace StarshipPad {
++
++struct GamepadProfile {
++    bool leftStick = false;
++    bool faceButtons = false; // A, B, X and Y
++    bool start = false;
++};
++
++// A remote or menu-only profile cannot fly, so it never hides the complete
++// touch controller.
++constexpr bool IsGameplayGamepad(const GamepadProfile& profile) {
++    return profile.leftStick && profile.faceButtons && profile.start;
++}
++
++struct TouchPreferences {
++    bool touchControls = true;          // "Touch Controls"; off is the deliberate manual hide
++    bool autoHideWithController = true; // "Auto-hide Touch Controls with Controller"
++};
++
++// "Show Touch Controls" recovers from both kinds of hiding and keeps the
++// controls visible until the user turns auto-hide back on.
++constexpr TouchPreferences ShowTouchControls(TouchPreferences) {
++    return { true, false };
++}
++
++// One policy decides both the artwork and whether the virtual analog
++// controller is attached.
++constexpr bool TouchGameplayControlsVisible(const TouchPreferences& preferences, bool playerOneHasGameplayGamepad) {
++    return preferences.touchControls && !(preferences.autoHideWithController && playerOneHasGameplayGamepad);
++}
++
++// The touch controller's own virtual joystick never counts as a physical
++// controller.
++template <typename Manager, typename ProfileOf>
++bool PlayerOneHasGameplayGamepad(Manager& manager, int32_t touchInstanceId, ProfileOf profileOf) {
++    for (const auto& [instanceId, gamepad] : manager.GetConnectedSDLGamepadsForPort(0)) {
++        if (instanceId != touchInstanceId && IsGameplayGamepad(profileOf(gamepad))) {
++            return true;
++        }
++    }
++    return false;
++}
++
++// Touch is always player 1's input. The manager would give a virtual joystick
++// attached after a physical controller the next free player, so pin it to
++// player 1 alongside that controller without moving the controller itself.
++template <typename Manager>
++void KeepTouchOnPlayerOne(Manager& manager, int32_t touchInstanceId) {
++    if (touchInstanceId < 0) {
++        return;
++    }
++    manager.UnignoreInstanceIdForPort(0, touchInstanceId);
++    for (uint8_t port = 1; port < 4; port++) {
++        manager.IgnoreInstanceIdForPort(port, touchInstanceId);
++    }
++}
++
++} // namespace StarshipPad
 diff --git a/libultraship b/libultraship
 --- a/libultraship
 +++ b/libultraship
@@ -1858,20 +1979,24 @@ diff --git a/libultraship b/libultraship
 -Subproject commit eaaf9d0fc91e2c400f49ef2a1f8547a691ce4d3c
 +Subproject commit eaaf9d0fc91e2c400f49ef2a1f8547a691ce4d3c-dirty
 diff --git a/src/port/Engine.cpp b/src/port/Engine.cpp
-index bc0ccb1f..93e20eab 100644
+index bc0ccb1f..c90b60ed 100644
 --- a/src/port/Engine.cpp
 +++ b/src/port/Engine.cpp
-@@ -1,6 +1,9 @@
+@@ -1,6 +1,13 @@
  #include "Engine.h"
  #include "ui/ImguiUI.h"
  #include "StringHelper.h"
 +#ifdef __IOS__
 +#include "ios/StarshipTouchControls.h"
++#include "ios/StarshipTouchVisibility.h"
++#include "libultraship/src/controller/controldeck/ControlDeck.h"
++#include <SDL_gamecontroller.h>
++#include <TargetConditionals.h>
 +#endif
  
  #include "extractor/GameExtractor.h"
  #include "libultraship/src/Context.h"
-@@ -42,7 +45,11 @@
+@@ -42,7 +49,11 @@
  #include "port/mods/PortEnhancements.h"
  
  #include <Fast3D/interpreter.h>
@@ -1883,7 +2008,7 @@ index bc0ccb1f..93e20eab 100644
  
  #ifdef __SWITCH__
  #include <port/switch/SwitchImpl.h>
-@@ -81,7 +88,9 @@ GameEngine::GameEngine() {
+@@ -81,7 +92,9 @@ GameEngine::GameEngine() {
  
      if (std::filesystem::exists(main_path)) {
          archiveFiles.push_back(main_path);
@@ -1894,7 +2019,7 @@ index bc0ccb1f..93e20eab 100644
          if (ShowYesNoBox("Starship - Asset Extraction", "Please provide a Starfox 64 ROM.\n\nSupported Versions:\nUS 1.0\nUS 1.1\n\nAssets will be extracted into an O2R file.") == IDYES) {
              if(!GenAssetFile()){
                  ShowMessage("Error", "An error occured, no O2R file was generated.\n\nExiting...");
-@@ -90,7 +99,7 @@ GameEngine::GameEngine() {
+@@ -90,7 +103,7 @@ GameEngine::GameEngine() {
                  archiveFiles.push_back(main_path);
              }
  
@@ -1903,7 +2028,7 @@ index bc0ccb1f..93e20eab 100644
                  if(!GenAssetFile()){
                      ShowMessage("Error", "An error occured, no O2R file was generated.");
                  }
-@@ -99,6 +108,7 @@ GameEngine::GameEngine() {
+@@ -99,6 +112,7 @@ GameEngine::GameEngine() {
              exit(1);
          }
      }
@@ -1911,7 +2036,7 @@ index bc0ccb1f..93e20eab 100644
  
      if (std::filesystem::exists(assets_path)) {
          archiveFiles.push_back(assets_path);
-@@ -170,8 +180,23 @@ GameEngine::GameEngine() {
+@@ -170,10 +184,25 @@ GameEngine::GameEngine() {
      auto audioChannelsSetting = Ship::Context::GetInstance()->GetConfig()->GetCurrentAudioChannelsSetting();
      this->context->Init(archiveFiles, {}, 3, { 32000, 1024, 1680, audioChannelsSetting }, window, controlDeck);
  
@@ -1935,7 +2060,9 @@ index bc0ccb1f..93e20eab 100644
 +    SPDLOG_INFO("StarshipPad diagnostics enabled: info breadcrumbs flush immediately");
 +#endif
  #endif
-@@ -265,6 +286,168 @@ GameEngine::GameEngine() {
+ 
+     auto loader = context->GetResourceManager()->GetResourceLoader();
+@@ -265,6 +294,168 @@ GameEngine::GameEngine() {
      context->GetResourceManager()->SetAltAssetsEnabled(prevAltAssets);
  }
  
@@ -2104,7 +2231,7 @@ index bc0ccb1f..93e20eab 100644
  bool GameEngine::GenAssetFile(bool exitOnFail) {
      auto extractor = new GameExtractor();
  
-@@ -297,6 +480,15 @@ void GameEngine::Create() {
+@@ -297,6 +488,18 @@ void GameEngine::Create() {
      instance->AudioInit();
      DisplayListPatch::Run();
      GameUI::SetupGuiElements();
@@ -2112,6 +2239,9 @@ index bc0ccb1f..93e20eab 100644
 +    CVarRegisterInteger("gSettings.TouchControls", 1);
 +    CVarRegisterInteger("gSettings.TouchAnalog", 1);
 +    CVarRegisterInteger("gSettings.ExperimentalCustomTouchLayout", 0);
++    // Defaults on only when the player has never saved a choice.
++    CVarRegisterInteger("gSettings.AutoHideTouchControls", 1);
++    StarshipPad_SetAutoHideTouchControls(CVarGetInteger("gSettings.AutoHideTouchControls", 1));
 +    StarshipPad_SetTouchAnalogEnabled(CVarGetInteger("gSettings.TouchAnalog", 1));
 +    StarshipPad_SetCustomTouchLayoutEnabled(
 +        CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0));
@@ -2120,6 +2250,36 @@ index bc0ccb1f..93e20eab 100644
  #if defined(__SWITCH__) || defined(__WIIU__)
      CVarRegisterInteger("gControlNav", 1); // always enable controller nav on switch/wii u
      osSetTime(0);
+@@ -317,6 +520,29 @@ void GameEngine::Destroy() {
+ }
+ 
+ void GameEngine::StartFrame() const {
++#ifdef __IOS__
++    {
++        auto manager = this->context->GetControlDeck()->GetConnectedPhysicalDeviceManager();
++        const int32_t touchInstanceId = StarshipPad_GetTouchControllerInstanceId();
++        StarshipPad::KeepTouchOnPlayerOne(*manager, touchInstanceId);
++#if !TARGET_OS_SIMULATOR
++        // Simulator builds skip this: the Simulator always presents its own
++        // wireless MFi "Gamepad", which says nothing about a physical controller.
++        StarshipPad_SetPlayerOneGamepadReady(StarshipPad::PlayerOneHasGameplayGamepad(
++            *manager, touchInstanceId, [](SDL_GameController* gamepad) {
++                return StarshipPad::GamepadProfile{
++                    SDL_GameControllerHasAxis(gamepad, SDL_CONTROLLER_AXIS_LEFTX) &&
++                        SDL_GameControllerHasAxis(gamepad, SDL_CONTROLLER_AXIS_LEFTY),
++                    SDL_GameControllerHasButton(gamepad, SDL_CONTROLLER_BUTTON_A) &&
++                        SDL_GameControllerHasButton(gamepad, SDL_CONTROLLER_BUTTON_B) &&
++                        SDL_GameControllerHasButton(gamepad, SDL_CONTROLLER_BUTTON_X) &&
++                        SDL_GameControllerHasButton(gamepad, SDL_CONTROLLER_BUTTON_Y),
++                    SDL_GameControllerHasButton(gamepad, SDL_CONTROLLER_BUTTON_START) == SDL_TRUE,
++                };
++            }));
++#endif
++    }
++#endif
+     using Ship::KbScancode;
+     const int32_t dwScancode = this->context->GetWindow()->GetLastScancode();
+     this->context->GetWindow()->SetLastScancode(-1);
 diff --git a/src/port/Engine.h b/src/port/Engine.h
 index b937e9db..47d4e296 100644
 --- a/src/port/Engine.h
@@ -2599,7 +2759,7 @@ index 00000000..c23cec2a
 +
 +} // namespace StarshipPad
 diff --git a/src/port/ui/ImguiUI.cpp b/src/port/ui/ImguiUI.cpp
-index 5874ac2a..ea7558a7 100644
+index 5874ac2a..7eb0005e 100644
 --- a/src/port/ui/ImguiUI.cpp
 +++ b/src/port/ui/ImguiUI.cpp
 @@ -14,6 +14,16 @@
@@ -2715,26 +2875,42 @@ index 5874ac2a..ea7558a7 100644
 +                    if (installingVoicePack) {
 +                        UIWidgets::ReEnableComponent("");
 +                        ImGui::TextUnformatted("Installing voice pack...");
-+                    }
+                     }
 +#else
 +                    if (UIWidgets::Button("Voice Pack") && GameEngine::GenAssetFile(false)) {
 +                        GameEngine::ShowMessage("Success", "Voice-pack assets installed. Changes will be applied on the next startup.", SDL_MESSAGEBOX_INFORMATION);
-                     }
++                    }
 +#endif
 +                    UIWidgets::Tooltip("Import a supported JP, EU, or CN ROM for replacement voices.");
                  }
                  ImGui::EndMenu();
              }
-@@ -347,6 +431,52 @@ void DrawSettingsMenu(){
+@@ -347,6 +431,68 @@ void DrawSettingsMenu(){
          UIWidgets::Spacer(0);
  
          if (UIWidgets::BeginMenu("Controller")) {
 +#ifdef __IOS__
++            if (StarshipPad_TouchControlsHidden()) {
++                if (UIWidgets::Button("Show Touch Controls")) {
++                    CVarSetInteger("gSettings.TouchControls", 1);
++                    CVarSetInteger("gSettings.AutoHideTouchControls", 0);
++                    Ship::Context::GetInstance()->GetWindow()->GetGui()->SaveConsoleVariablesNextFrame();
++                    StarshipPad_ShowTouchControls();
++                }
++                UIWidgets::Tooltip("Closes Settings and shows the touch controls now, even with a controller "
++                                   "connected. Turns off auto-hide until you turn it back on.");
++            }
 +            if (UIWidgets::CVarCheckbox("Touch Controls", "gSettings.TouchControls", {
-+                    .tooltip = "Shows the on-screen Star Fox controls. A physical controller automatically takes priority.",
++                    .tooltip = "Shows the on-screen Star Fox controls. Turn it off to hide them; Show Touch Controls brings them back.",
 +                    .defaultValue = true,
 +                })) {
 +                StarshipPad_SetTouchControlsEnabled(CVarGetInteger("gSettings.TouchControls", 1));
++            }
++            if (UIWidgets::CVarCheckbox("Auto-hide Touch Controls with Controller", "gSettings.AutoHideTouchControls", {
++                    .tooltip = "Hides the touch controls while a controller with a stick, face buttons and Start is assigned to player 1, and shows them again when it leaves.",
++                    .defaultValue = true,
++                })) {
++                StarshipPad_SetAutoHideTouchControls(CVarGetInteger("gSettings.AutoHideTouchControls", 1));
 +            }
 +            if (UIWidgets::CVarCheckbox("Analog Touch", "gSettings.TouchAnalog", {
 +                    .tooltip = "Uses continuous analog steering. Disable it to use the proven eight-way fallback.",
@@ -2752,7 +2928,7 @@ index 5874ac2a..ea7558a7 100644
 +                    CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0));
 +            }
 +            const bool customLayoutAvailable =
-+                CVarGetInteger("gSettings.TouchControls", 1) &&
++                !StarshipPad_TouchControlsHidden() &&
 +                CVarGetInteger("gSettings.ExperimentalCustomTouchLayout", 0);
 +            if (!customLayoutAvailable) {
 +                UIWidgets::DisableComponent(ImGui::GetStyle().Alpha * 0.5f);
@@ -2766,7 +2942,7 @@ index 5874ac2a..ea7558a7 100644
 +            UIWidgets::Tooltip(
 +                customLayoutAvailable
 +                    ? "Closes Settings and opens the experimental native editor. Drag controls, resize the selected control, hide unused buttons, or reset the current phone/tablet layout."
-+                    : "Enable Touch Controls and Experimental Custom Touch Layout first.");
++                    : "Show Touch Controls and turn on Experimental Custom Touch Layout first.");
 +            UIWidgets::Spacer(0);
 +#endif
 +            ImGui::TextUnformatted("Flight Controls");
@@ -2778,7 +2954,7 @@ index 5874ac2a..ea7558a7 100644
              UIWidgets::WindowButton("Controller Mapping", "gInputEditorWindow", GameUI::mInputEditorWindow);
  
              UIWidgets::Spacer(0);
-@@ -355,10 +485,6 @@ void DrawSettingsMenu(){
+@@ -355,10 +501,6 @@ void DrawSettingsMenu(){
                  .tooltip = "Allows controller navigation of the SOH menu bar (Settings, Enhancements,...)\nCAUTION: This will disable game inputs while the menubar is visible.\n\nD-pad to move between items, A to select, and X to grab focus on the menu bar"
              });
  
@@ -2789,7 +2965,7 @@ index 5874ac2a..ea7558a7 100644
              ImGui::EndMenu();
          }
  
-@@ -462,6 +588,7 @@ void DrawSettingsMenu(){
+@@ -462,6 +604,7 @@ void DrawSettingsMenu(){
          UIWidgets::PaddedEnhancementCheckbox("Match Refresh Rate", "gMatchRefreshRate", true, false);
          UIWidgets::Tooltip("Matches interpolation value to the refresh rate of your display.");
  
@@ -2797,7 +2973,7 @@ index 5874ac2a..ea7558a7 100644
          if (Ship::Context::GetInstance()->GetWindow()->GetWindowBackend() == Ship::WindowBackend::FAST3D_DXGI_DX11) {
              UIWidgets::PaddedEnhancementCheckbox("Render parallelization","gRenderParallelization", true, false, {}, {}, {}, true);
              UIWidgets::Tooltip(
-@@ -470,6 +597,7 @@ void DrawSettingsMenu(){
+@@ -470,6 +613,7 @@ void DrawSettingsMenu(){
                  "or if you notice other performance problems.\n"
                  "Adds up to one frame of input lag under certain scenarios.");
          }
@@ -2805,7 +2981,7 @@ index 5874ac2a..ea7558a7 100644
        
          UIWidgets::PaddedSeparator(true, true, 3.0f, 3.0f);
  
-@@ -479,6 +607,10 @@ void DrawSettingsMenu(){
+@@ -479,6 +623,10 @@ void DrawSettingsMenu(){
                  { Ship::WindowBackend::FAST3D_SDL_METAL, "Metal" }
          };
  
@@ -2816,7 +2992,7 @@ index 5874ac2a..ea7558a7 100644
          ImGui::Text("Renderer API (Needs reload)");
          Ship::WindowBackend runningWindowBackend = Ship::Context::GetInstance()->GetWindow()->GetWindowBackend();
          Ship::WindowBackend configWindowBackend;
-@@ -507,6 +639,7 @@ void DrawSettingsMenu(){
+@@ -507,6 +655,7 @@ void DrawSettingsMenu(){
          if (Ship::Context::GetInstance()->GetWindow()->GetAvailableWindowBackends()->size() <= 1) {
              UIWidgets::ReEnableComponent("");
          }
@@ -2824,7 +3000,7 @@ index 5874ac2a..ea7558a7 100644
  
          if (Ship::Context::GetInstance()->GetWindow()->CanDisableVerticalSync()) {
              UIWidgets::PaddedEnhancementCheckbox("Enable Vsync", "gVsyncEnabled", true, false, false, "", UIWidgets::CheckboxGraphics::Cross, true);
-@@ -915,6 +1048,9 @@ void DrawDebugMenu() {
+@@ -915,6 +1064,9 @@ void DrawDebugMenu() {
  
  void GameMenuBar::DrawElement() {
      if(ImGui::BeginMenuBar()){
@@ -2834,7 +3010,7 @@ index 5874ac2a..ea7558a7 100644
          DrawMenuBarIcon();
  
          DrawGameMenu();
-@@ -939,4 +1075,4 @@ void GameMenuBar::DrawElement() {
+@@ -939,4 +1091,4 @@ void GameMenuBar::DrawElement() {
  
          ImGui::EndMenuBar();
      }

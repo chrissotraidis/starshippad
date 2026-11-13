@@ -9,19 +9,29 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BASELINE_REVISION = '57ced908a969290bc48b4eea347cf7f7a289389f'
+# Earlier wrapper revisions whose patched checkouts must upgrade in place:
+# before the scene backport, and the v0.2.1-era complete patches.
+BASELINES = {
+    'legacy': '57ced908a969290bc48b4eea347cf7f7a289389f',
+    'previous': 'a578b8f2a544e60645c9eb7a46173389d04e8922',
+}
+COMPLETE_PATCHES = [('sources/Starship', 'starship-ios.patch'),
+                    ('sources/Starship/libultraship', 'libultraship-ios.patch'),
+                    ('sources/Starship/tools/Torch', 'torch-ios.patch')]
 LUS = ROOT / 'sources/Starship/libultraship'
 SDL = ROOT / 'build-ios/_deps/sdl2-src'
 WORK = ROOT / 'build-uikit-tests'
 WORK.mkdir(exist_ok=True)
 RUN = Path(tempfile.mkdtemp(prefix='replay-', dir=WORK))
-ORIGINAL = RUN / 'baseline'
-for relative in ['patches/libultraship-ios.patch', 'patches/starship-ios.patch',
-                 'patches/torch-ios.patch', 'scripts/apply-source-patches.sh']:
-    destination = ORIGINAL / relative
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(subprocess.check_output(
-        ['git', '-C', str(ROOT), 'show', BASELINE_REVISION + ':' + relative]))
+ORIGINALS = {}
+for baseline, revision in BASELINES.items():
+    ORIGINALS[baseline] = RUN / ('baseline-' + baseline)
+    for relative in ['patches/libultraship-ios.patch', 'patches/starship-ios.patch',
+                     'patches/torch-ios.patch', 'scripts/apply-source-patches.sh']:
+        destination = ORIGINALS[baseline] / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(subprocess.check_output(
+            ['git', '-C', str(ROOT), 'show', revision + ':' + relative]))
 
 
 def run(args, cwd, success=True):
@@ -56,45 +66,46 @@ def patch_paths(patch, repo):
     return [path for path in changed if path in existing]
 
 
-def prepared(name, legacy):
+def prepared(name, baseline=None):
     fixture = RUN / name
     fixture.mkdir()
     shutil.copytree(ROOT / 'scripts', fixture / 'scripts')
     shutil.copytree(ROOT / 'patches', fixture / 'patches')
     shutil.copytree(ROOT / 'ios-assets', fixture / 'ios-assets')
-    for relative, patch in [('sources/Starship', 'starship-ios.patch'),
-                            ('sources/Starship/libultraship', 'libultraship-ios.patch'),
-                            ('sources/Starship/tools/Torch', 'torch-ios.patch')]:
+    for relative, patch in COMPLETE_PATCHES:
         repo = ROOT / relative
         archive(repo, fixture / relative, patch_paths(ROOT / 'patches' / patch, repo))
-    if legacy:
-        shutil.copytree(ORIGINAL / 'patches', fixture / 'patches', dirs_exist_ok=True)
-        shutil.copy2(ORIGINAL / 'scripts/apply-source-patches.sh', fixture / 'scripts/apply-source-patches.sh')
+    if baseline:
+        original = ORIGINALS[baseline]
+        shutil.copytree(original / 'patches', fixture / 'patches', dirs_exist_ok=True)
+        shutil.copy2(original / 'scripts/apply-source-patches.sh', fixture / 'scripts/apply-source-patches.sh')
         run(['bash', 'scripts/apply-source-patches.sh'], fixture)
         shutil.copytree(ROOT / 'patches', fixture / 'patches', dirs_exist_ok=True)
         shutil.copy2(ROOT / 'scripts/apply-source-patches.sh', fixture / 'scripts/apply-source-patches.sh')
     return fixture
 
 
-for legacy in [False, True]:
-    fixture = prepared('legacy' if legacy else 'pristine', legacy)
+for name, baseline in [('pristine', None), ('legacy', 'legacy'), ('previous', 'previous')]:
+    fixture = prepared(name, baseline)
     lus = fixture / 'sources/Starship/libultraship'
     edit = lus / 'src/Context.cpp'
     edit.write_text(edit.read_text() + '\n// unrelated local edit retained by replay test\n')
     marker = fixture / 'sources/Starship/local-edit.txt'
     marker.write_text('untracked edit stays\n')
     output = run(['bash', 'scripts/apply-source-patches.sh'], fixture)
-    if legacy:
+    if baseline == 'legacy':
         assert 'Upgraded: libultraship-ios.patch' in output
         assert 'Upgraded: starship-ios.patch' in output
+    for relative, patch in COMPLETE_PATCHES:
+        run(['git', 'apply', '--reverse', '--check', str(ROOT / 'patches' / patch)], fixture / relative)
     first = snapshot(fixture / 'sources')
     run(['bash', 'scripts/apply-source-patches.sh'], fixture)
     assert snapshot(fixture / 'sources') == first
     assert edit.read_text().endswith('// unrelated local edit retained by replay test\n')
     assert marker.read_text() == 'untracked edit stays\n'
-    print(('legacy upgrade' if legacy else 'pristine wrapper') + ': PASS, rerun identical, edits preserved')
+    print(name + ' wrapper: PASS, complete patches present, rerun identical, edits preserved')
 
-fixture = prepared('wrapper-conflict', True)
+fixture = prepared('wrapper-conflict', 'legacy')
 conflict = fixture / 'sources/Starship/libultraship/cmake/dependencies/ios.cmake'
 conflict.write_text(conflict.read_text().replace('5d249570393f7a37e037abf22cd6012a4cc56a71', 'local-edit-kept'))
 before = snapshot(fixture / 'sources')
