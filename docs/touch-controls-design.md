@@ -25,6 +25,14 @@ default while customizable controls are evaluated.
 - Opening the menu cancels held gameplay input before hiding the overlay.
 - Disabling Touch Controls removes gameplay controls without removing `•••`.
 - Disabling Analog Touch falls back to the complete eight-way keyboard path.
+- **Auto-hide Touch Controls with Controller** (on unless a choice was saved)
+  hides the gameplay controls and detaches the virtual analog controller while
+  a controller with a stick, face buttons and Start is assigned to player 1;
+  one policy decides both. Settings → Controller → **Show Touch Controls**
+  restores working controls with that controller still connected, turns
+  auto-hide off, and pins the virtual controller to player 1 beside the
+  physical one without moving it. Simulator builds do not auto-hide because the
+  Simulator always presents its own "Gamepad".
 
 ## Experimental custom layout
 

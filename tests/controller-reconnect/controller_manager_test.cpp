@@ -1,4 +1,5 @@
 #include "controller/physicaldevice/ConnectedPhysicalDeviceManager.h"
+#include "StarshipTouchVisibility.h"
 
 #include <algorithm>
 #include <cassert>
@@ -122,6 +123,77 @@ void TestVirtualTouchDoesNotDisplacePhysicalPlayerOne() {
     assert(manager.ReconcileConnectedSDLGamepads("device-removed"));
     assert(AssignedPort(manager, 600) == 0);
 }
+
+void TestTouchVisibilityFollowsPlayerOne() {
+    Ship::ConnectedPhysicalDeviceManager manager;
+    constexpr int32_t kTouch = 700;
+    const auto profileOf = [](SDL_GameController* gamepad) {
+        return std::string(SDL_GameControllerName(gamepad)) == "Menu Remote"
+                   ? StarshipPad::GamepadProfile{ false, false, true }
+                   : StarshipPad::GamepadProfile{ true, true, true };
+    };
+    StarshipPad::TouchPreferences preferences; // no saved choice
+    const auto visible = [&](int32_t touchInstanceId) {
+        return StarshipPad::TouchGameplayControlsVisible(
+            preferences, StarshipPad::PlayerOneHasGameplayGamepad(manager, touchInstanceId, profileOf));
+    };
+
+    // A controller connected before launch hides touch, so no virtual
+    // controller is attached.
+    SetDevices({ { 800, "Physical Pad" } });
+    assert(manager.ReconcileConnectedSDLGamepads("startup"));
+    assert(!visible(-1));
+
+    // Show with the controller still connected: the virtual controller
+    // attaches, lands on player 2, and is pinned to player 1 next to the
+    // physical controller, which keeps player 1.
+    preferences = StarshipPad::ShowTouchControls(preferences);
+    assert(visible(-1));
+    SetDevices({ { 800, "Physical Pad" }, { kTouch, "Virtual Controller", true } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-added"));
+    assert(AssignedPort(manager, kTouch) == 1);
+    StarshipPad::KeepTouchOnPlayerOne(manager, kTouch);
+    const auto playerOne = manager.GetConnectedSDLGamepadsForPort(0);
+    assert(playerOne.contains(kTouch) && playerOne.contains(800));
+    for (uint8_t port = 1; port < 4; port++) {
+        assert(manager.GetConnectedSDLGamepadsForPort(port).empty());
+    }
+    assert(visible(kTouch));
+
+    // Turning auto-hide back on hides touch again at once; the touch
+    // controller itself never counts as a physical controller.
+    preferences.autoHideWithController = true;
+    assert(!visible(kTouch));
+    SetDevices({ { kTouch, "Virtual Controller", true } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-removed"));
+    assert(visible(kTouch));
+
+    // With two controllers, losing player 2 keeps the hide; a controller
+    // left only on player 2 does not hide player 1's touch.
+    SetDevices({ { 900, "Pad A" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-added"));
+    SetDevices({ { 900, "Pad A" }, { 950, "Pad B" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-added"));
+    assert(AssignedPort(manager, 900) == 0 && AssignedPort(manager, 950) == 1);
+    SetDevices({ { 900, "Pad A" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-removed"));
+    assert(!visible(-1));
+    SetDevices({ { 900, "Pad A" }, { 950, "Pad B" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-added"));
+    SetDevices({ { 950, "Pad B" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-removed"));
+    assert(AssignedPort(manager, 950) == 1);
+    assert(visible(-1));
+
+    // A menu-only profile on player 1 cannot fly, so touch stays; a manual
+    // hide is still respected.
+    SetDevices({ { 990, "Menu Remote" } });
+    assert(manager.ReconcileConnectedSDLGamepads("device-added"));
+    assert(AssignedPort(manager, 990) == 0);
+    assert(visible(-1));
+    preferences.touchControls = false;
+    assert(!visible(-1));
+}
 } // namespace
 
 int SDL_NumJoysticks() {
@@ -197,6 +269,7 @@ const char* SDL_GetError() {
 int main() {
     TestMissedRemovalAndStableSlots();
     TestVirtualTouchDoesNotDisplacePhysicalPlayerOne();
+    TestTouchVisibilityFollowsPlayerOne();
     std::cout << "controller manager reconnect tests passed\n";
     return 0;
 }

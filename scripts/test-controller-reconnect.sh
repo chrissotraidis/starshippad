@@ -13,7 +13,7 @@ if [ ! -f "$SOURCE/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp"
 fi
 
 "${CXX:-clang++}" -std=c++20 -Wall -Wextra -Werror \
-    -I"$TEST_ROOT" -I"$SOURCE" \
+    -I"$TEST_ROOT" -I"$SOURCE" -I"$ROOT/sources/Starship/ios" \
     "$TEST_ROOT/controller_manager_test.cpp" \
     "$SOURCE/controller/physicaldevice/ConnectedPhysicalDeviceManager.cpp" \
     -o "$OUTPUT"
