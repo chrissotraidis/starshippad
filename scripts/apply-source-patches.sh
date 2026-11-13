@@ -47,7 +47,8 @@ apply_patch() {
     fi
 }
 
-apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch" "$ROOT/patches/libultraship-uikit-scenes.patch"
+apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch" "$ROOT/patches/libultraship-uikit-scenes.patch" \
+    "$ROOT/patches/libultraship-sdl2-window-ownership.patch"
 apply_patch "$TORCH" "$ROOT/patches/torch-ios.patch"
 
 if [ -s "$ROOT/patches/starship-ios.patch" ]; then

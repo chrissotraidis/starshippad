@@ -115,14 +115,16 @@ print('incompatible wrapper edit: PASS, fails without changing sources')
 
 helper = LUS / 'cmake/dependencies/git-patch.cmake'
 complete = LUS / 'cmake/dependencies/patches/sdl2-uikit-scenes.patch'
-followup = LUS / 'cmake/dependencies/patches/sdl2-uikit-orientation.patch'
+followup = LUS / 'cmake/dependencies/patches/sdl2-uikit-window-ownership.patch'
 patch_files = patch_paths(complete, SDL)
-for state in ['pristine', 'scene-only', 'complete', 'conflict']:
+# 'previous' is an SDL cache holding the scene/orientation patch from before
+# the window-ownership fix (chrissotraidis/SDL c6756fcd).
+for state in ['pristine', 'previous', 'complete', 'conflict']:
     tree = RUN / ('sdl-' + state)
     archive(SDL, tree, patch_files + ['src/SDL.c'])
-    if state in ['scene-only', 'complete']:
+    if state in ['previous', 'complete']:
         run(['git', 'apply', str(complete)], tree)
-    if state == 'scene-only':
+    if state == 'previous':
         run(['git', 'apply', '--reverse', str(followup)], tree)
     edit = tree / 'src/SDL.c'
     edit.write_text(edit.read_text() + '\n/* unrelated local edit kept */\n')
