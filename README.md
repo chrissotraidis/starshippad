@@ -40,7 +40,7 @@ ROM, extracted Nintendo assets, or a playable ROM-derived archive.
 |---|---|---|
 | Local signed iPhone/iPad build | **In device testing** | The current development build has been signed, installed, and launched on a physical iPhone 14 and 12.9-inch iPad Pro |
 | Simulator | **Tested** | Best path for repeatable development and UI validation; it does not prove physical control feel |
-| Make your own IPA with PadMint | **Available** | On an Apple Silicon Mac, or on [GitHub's free Mac](https://github.com/chrissotraidis/padmint#no-mac-build-on-githubs-mac) without one, [PadMint](https://github.com/chrissotraidis/padmint/releases/latest) builds StarshipPad from this repository's latest release (v0.2.1, which includes the [SDK repair](https://github.com/chrissotraidis/starshippad/pull/20)). See [Get started](#get-started). |
+| Make your own IPA with PadMint | **Available** | On an Apple Silicon Mac, or on [GitHub's free Mac](https://github.com/chrissotraidis/padmint#no-mac-build-on-githubs-mac) without one, [PadMint](https://github.com/chrissotraidis/padmint/releases/latest) builds StarshipPad from this repository's latest release (v0.2.2, which adds the external-display window fix and Show Touch Controls with controller auto-hide). See [Get started](#get-started). |
 | Public signed download | **Not available** | No official downloadable signed build is published |
 | App Store / TestFlight | **Not announced** | No listing or public beta exists |
 

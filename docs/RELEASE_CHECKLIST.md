@@ -35,23 +35,17 @@ or obtaining a heuristic gate PASS does not provide rights clearance.
       signed app, or IPA appears in the current tree or Git history.
 - [ ] Remaining physical-device limitations are stated plainly.
 
-## Proposed v0.2.1 source-only successor (not published)
+## Proposed v0.2.2 source-only successor (draft, not published)
 
-- `version.json`: 0.2.1 / build 7.
-- Staged assets: `releases/v0.2.1/StarshipPad-v0.2.1-padmint.json` and
-  `releases/v0.2.1/SHA256SUMS`. The recipe commands/schema are unchanged.
-- Depends on reviewed SDK repair #20. Do not tag source that lacks that fix.
-- Preserve published v0.2.0 assets, checksums and player caches unchanged.
-- The tested SDK candidate was `731addea90a4acfeb77cbe191f3e1bd025426a66`
-  with 0.2.0/build 6 metadata. Its complete packaged PadMint 0.2.8 build and
-  hosted CI passed; this is not a new 0.2.1 app/runtime acceptance claim.
-- After approved source publication, independently run actual packaged
-  PadMint 0.2.8 `make starshippad ios --jobs 1`. Record selected tag, resolved
-  source commit, cache identity and all pipeline stages. Until then, the
-  default published-player route remains unverified against the repair.
-- For explicit candidate source, use supported generic `build --repo ...
-  --revision <reviewed-full-commit> --target ios --jobs 1`; `make` has no
-  supported explicit-revision flag.
+- `version.json`: 0.2.2 / build 8.
+- Staged assets: `releases/v0.2.2/StarshipPad-v0.2.2-padmint.json` and
+  `releases/v0.2.2/SHA256SUMS`. The recipe is unchanged from v0.2.1.
+- Carries the SDL2 external-display window fix (#26) and Show Touch Controls
+  with controller auto-hide (#25). Physical TV and controller acceptance is
+  pending; publish after the maintainer checks both.
+- Preserve published v0.2.1 assets, checksums and player caches unchanged.
+- Run PadMint's `scripts/player-check.sh` with a clean checkout before
+  tagging and without one after publishing.
 
 ## Current blockers
 
