@@ -326,7 +326,7 @@ diff --git a/ios/Info.plist.in b/ios/Info.plist.in
 new file mode 100644
 --- /dev/null
 +++ b/ios/Info.plist.in
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,74 @@
 +<?xml version="1.0" encoding="UTF-8"?>
 +<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
 +<plist version="1.0">
@@ -383,6 +383,8 @@ new file mode 100644
 +    </array>
 +    <key>UIRequiresFullScreen</key>
 +    <true/>
++    <key>UIRequiresFullScreenIgnoredStartingWithVersion</key>
++    <string>26</string>
 +    <key>UIStatusBarHidden</key>
 +    <true/>
 +    <key>UISupportedInterfaceOrientations</key>
@@ -392,6 +394,8 @@ new file mode 100644
 +    </array>
 +    <key>UISupportedInterfaceOrientations~ipad</key>
 +    <array>
++        <string>UIInterfaceOrientationPortrait</string>
++        <string>UIInterfaceOrientationPortraitUpsideDown</string>
 +        <string>UIInterfaceOrientationLandscapeLeft</string>
 +        <string>UIInterfaceOrientationLandscapeRight</string>
 +    </array>
