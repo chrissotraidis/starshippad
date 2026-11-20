@@ -35,15 +35,15 @@ or obtaining a heuristic gate PASS does not provide rights clearance.
       signed app, or IPA appears in the current tree or Git history.
 - [ ] Remaining physical-device limitations are stated plainly.
 
-## Proposed v0.2.2 source-only successor (draft, not published)
+## Proposed v0.2.3 source-only successor (draft, not published)
 
-- `version.json`: 0.2.2 / build 8.
-- Staged assets: `releases/v0.2.2/StarshipPad-v0.2.2-padmint.json` and
-  `releases/v0.2.2/SHA256SUMS`. The recipe is unchanged from v0.2.1.
+- `version.json`: 0.2.3 / build 9.
+- Staged assets: `releases/v0.2.3/StarshipPad-v0.2.3-padmint.json` and
+  `releases/v0.2.3/SHA256SUMS`. The recipe is unchanged from v0.2.2.
 - Carries the SDL2 external-display window fix (#26) and Show Touch Controls
   with controller auto-hide (#25). Physical TV and controller acceptance is
   pending; publish after the maintainer checks both.
-- Preserve published v0.2.1 assets, checksums and player caches unchanged.
+- Preserve existing v0.2.2 assets, checksums and player caches unchanged.
 - Run PadMint's `scripts/player-check.sh` with a clean checkout before
   tagging and without one after publishing.
 

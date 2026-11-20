@@ -49,6 +49,9 @@ apply_patch() {
 
 apply_patch "$LUS" "$ROOT/patches/libultraship-ios.patch" "$ROOT/patches/libultraship-uikit-scenes.patch" \
     "$ROOT/patches/libultraship-sdl2-window-ownership.patch"
+# iOS windows are already full-screen; switching SDL display modes used the
+# iPad's own mode and left an external display (a TV) black. As in HarkinianPad.
+apply_patch "$LUS" "$ROOT/patches/libultraship-ios-fullscreen-guard.patch"
 apply_patch "$TORCH" "$ROOT/patches/torch-ios.patch"
 
 if [ -s "$ROOT/patches/starship-ios.patch" ]; then
